@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let rms = (samples.iter().map(|x| x * x).sum::<f32>()
                             / samples.len() as f32)
                             .sqrt();
-                        let msg = format!("{:.4}", rms);
+                        let msg = format!("{:.4}\n", rms);
                         println!("Samples: {}, RMS: {:.4}", samples.len(), rms);
                         let _ = socket.lock().unwrap().write_all(msg.as_bytes());
                     }
