@@ -13,6 +13,7 @@
 #include <hyprland/src/desktop/Window.hpp>
 #include <hyprland/src/managers/HookSystemManager.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
+#include "shaders.hpp"
 
 inline HANDLE PHANDLE = nullptr;
 
@@ -21,26 +22,42 @@ static float g_loudness = 0.0f;
 static GLuint g_shaderProg = 0;
 static GLint g_loudnessUniform = -1;
 static wl_event_source *g_tick = nullptr;
-
-const std::string FRAG_SHADER = R"glsl(
-#version 330 core
-uniform float loudness;
-out vec4 fragColor;
-void main() {
-    vec2 uv = gl_FragCoord.xy / vec2(1920.0, 1080.0); // hardcoded res for now
-    float r = sin(uv.x * 10.0 + loudness * 5.0);
-    float g = sin(uv.y * 10.0 + loudness * 10.0);
-    fragColor = vec4(r, g, loudness, 1.0);
-}
-)glsl";
+static GLuint g_vao = 0;
+static GLuint g_vbo = 0;
 
 const std::string VERT_SHADER = R"glsl(
-#version 330 core
+#version 300 es
+precision mediump float;
 layout(location = 0) in vec2 pos;
 void main() {
     gl_Position = vec4(pos, 0.0, 1.0);
 }
 )glsl";
+
+void initGeometry()
+{
+    // Fullscreen triangle coords (cover screen efficiently)
+    float vertices[] = {
+        -1.f,
+        -1.f,
+        3.f,
+        -1.f,
+        -1.f,
+        3.f,
+    };
+
+    glGenVertexArrays(1, &g_vao);
+    glBindVertexArray(g_vao);
+
+    glGenBuffers(1, &g_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, g_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+
+    glBindVertexArray(0);
+}
 
 GLuint compileShader(GLenum type, const std::string &src)
 {
@@ -66,7 +83,7 @@ GLuint compileShader(GLenum type, const std::string &src)
 GLuint createProgram()
 {
     GLuint vs = compileShader(GL_VERTEX_SHADER, VERT_SHADER);
-    GLuint fs = compileShader(GL_FRAGMENT_SHADER, FRAG_SHADER);
+    GLuint fs = compileShader(GL_FRAGMENT_SHADER, glitch_frag);
     GLuint prog = glCreateProgram();
     glAttachShader(prog, vs);
     glAttachShader(prog, fs);
@@ -100,6 +117,9 @@ int onTick(void *)
     g_pHyprRenderer->makeEGLCurrent();
     glUseProgram(g_shaderProg);
     glUniform1f(g_loudnessUniform, g_loudness);
+    glBindVertexArray(g_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
 
     // draw fullscreen triangle or screen effect
     g_pHyprRenderer->damageMonitor(g_pHyprRenderer->m_mostHzMonitor.lock()); // force repaint
@@ -147,6 +167,7 @@ extern "C" APICALL PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
     g_pHyprRenderer->makeEGLCurrent();
     g_shaderProg = createProgram();
     g_loudnessUniform = glGetUniformLocation(g_shaderProg, "loudness");
+    initGeometry();
 
     setupSocket();
 
