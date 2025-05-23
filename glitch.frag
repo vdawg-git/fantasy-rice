@@ -35,7 +35,15 @@ void main() {
   vec4 pixColor = texture2D(tex, uv);
 
   vec3 col = pixColor.rgb;
-  col += loudness;
+  col.r -= loudness;
+
+  col.r = mix(col.r, mix(col.g, col.b, 0.9), 0.05);
+  col.g = mix(col.g, mix(col.r, col.b, 0.3), 0.05);
+  col.b = mix(col.b, mix(col.g, col.r, 0.8), 0.05);
+
+  col.rb *= vec2(1.04, 0.8); // crt phosphor  tinting
+
+
 
 
   gl_FragColor = vec4( col, 1.0 );

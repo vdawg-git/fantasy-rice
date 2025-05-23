@@ -46,9 +46,10 @@ static float s_tmp = -1.0;
 
 void hkUseProgram(GLuint prog)
 {
-    // call original function
     (*(useProgramOriginal)s_useProgramHook->m_original)(prog);
 
+    // this function does get called.
+    // but never this part down here
     if (prog == s_finalScreenShaderProgram)
     {
         s_tmp = 44.0;
