@@ -15,174 +15,133 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include "shaders.hpp"
 
+#define private public
+#include <hyprland/src/render/OpenGL.hpp>
+#undef private
+
 inline HANDLE PHANDLE = nullptr;
 
-static int g_socketFD = -1;
-static float g_loudness = 0.0f;
-static GLuint g_shaderProg = 0;
-static GLint g_loudnessUniform = -1;
-static wl_event_source *g_tick = nullptr;
-static GLuint g_vao = 0;
-static GLuint g_vbo = 0;
+typedef void (*useProgramOriginal)(GLuint);
+inline CFunctionHook *s_useProgramHook = nullptr;
 
-const std::string VERT_SHADER = R"glsl(
-#version 300 es
-precision mediump float;
-layout(location = 0) in vec2 pos;
-void main() {
-    gl_Position = vec4(pos, 0.0, 1.0);
-}
-)glsl";
+typedef void (*applyScreenShaderOriginal)(const std::string &path);
+inline CFunctionHook *s_applyScreenShaderHook = nullptr;
 
-void initGeometry()
+static int s_socketFD = -1;
+static float s_loudness = 5.0f;
+inline GLint s_loudnessUniform = -1;
+
+void hkUseProgram(GLuint prog)
 {
-    // Fullscreen triangle coords (cover screen efficiently)
-    float vertices[] = {
-        -1.f,
-        -1.f,
-        3.f,
-        -1.f,
-        -1.f,
-        3.f,
-    };
+    // call original function
+    (*(useProgramOriginal)s_useProgramHook->m_original)(prog);
 
-    glGenVertexArrays(1, &g_vao);
-    glBindVertexArray(g_vao);
+    auto finalShader = g_pHyprOpenGL.get()->m_finalScreenShader; // NOLINT
 
-    glGenBuffers(1, &g_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, g_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    if (prog != finalShader.program)
+        return;
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
-
-    glBindVertexArray(0);
-}
-
-GLuint compileShader(GLenum type, const std::string &src)
-{
-    GLuint shader = glCreateShader(type);
-    const char *cstr = src.c_str();
-    glShaderSource(shader, 1, &cstr, nullptr);
-    glCompileShader(shader);
-
-    GLint ok;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
-    if (!ok)
+    if (s_loudnessUniform == -1)
     {
-        // Fetch the error log
-        char log[512];
-        glGetShaderInfoLog(shader, 512, nullptr, log);
-        std::string typeStr = type == GL_VERTEX_SHADER ? "VERT" : "FRAG";
-        throw std::runtime_error("[" + typeStr + "] Shader compile failed: " + std::string(log));
+        s_loudnessUniform = glGetUniformLocation(prog, "loudness");
     }
 
-    return shader;
-}
-
-GLuint createProgram()
-{
-    GLuint vs = compileShader(GL_VERTEX_SHADER, VERT_SHADER);
-    GLuint fs = compileShader(GL_FRAGMENT_SHADER, glitch_frag);
-    GLuint prog = glCreateProgram();
-    glAttachShader(prog, vs);
-    glAttachShader(prog, fs);
-    glLinkProgram(prog);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-
-    GLint ok;
-    glGetProgramiv(prog, GL_LINK_STATUS, &ok);
-    if (!ok)
-        throw std::runtime_error("Shader link failed");
-    return prog;
+    glUniform1f(s_loudnessUniform, s_loudness);
 }
 
 int onTick(void *)
 {
     char buf[64] = {};
-    ssize_t len = read(g_socketFD, buf, sizeof(buf) - 1);
+    ssize_t len = read(s_socketFD, buf, sizeof(buf) - 1);
     if (len > 0)
     {
         try
         {
-            g_loudness = std::stof(buf);
+            s_loudness = std::stof(buf);
         }
         catch (...)
         {
-            g_loudness = 0.0f;
+            s_loudness = 0.0f;
         }
     }
 
-    g_pHyprRenderer->makeEGLCurrent();
-    glUseProgram(g_shaderProg);
-    glUniform1f(g_loudnessUniform, g_loudness);
-    glBindVertexArray(g_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glBindVertexArray(0);
-
-    // draw fullscreen triangle or screen effect
-    g_pHyprRenderer->damageMonitor(g_pHyprRenderer->m_mostHzMonitor.lock()); // force repaint
-
-    int timeout = g_pHyprRenderer->m_mostHzMonitor ? 1000 / g_pHyprRenderer->m_mostHzMonitor->m_refreshRate : 16;
-    wl_event_source_timer_update(g_tick, timeout);
     return 0;
 }
 
 void setupSocket()
 {
-    g_socketFD = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (g_socketFD < 0)
+    s_socketFD = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (s_socketFD < 0)
         throw std::runtime_error("Failed to create socket");
 
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, "/tmp/audio_monitor.sock", sizeof(addr.sun_path) - 1);
 
-    if (connect(g_socketFD, (sockaddr *)&addr, sizeof(addr)) < 0)
+    if (connect(s_socketFD, (sockaddr *)&addr, sizeof(addr)) < 0)
         throw std::runtime_error("Failed to connect to audio_monitor.sock");
 
-    fcntl(g_socketFD, F_SETFL, O_NONBLOCK);
+    fcntl(s_socketFD, F_SETFL, O_NONBLOCK);
 }
 
-// Do NOT change this function.
-APICALL EXPORT std::string PLUGIN_API_VERSION()
+void setupHook(
+    HANDLE handle, const std::string &name, const std::string &demangled, const void *hook, CFunctionHook *bindingVariable)
 {
-    return HYPRLAND_API_VERSION;
+    auto toSearch = HyprlandAPI::findFunctionsByName(PHANDLE, name);
+    for (auto &fn : toSearch)
+    {
+        if (!fn.demangled.contains(demangled))
+            continue;
+
+        bindingVariable = HyprlandAPI::createFunctionHook(PHANDLE, fn.address, hook);
+
+        bool success = bindingVariable && bindingVariable->hook();
+        if (!success)
+        {
+            throw std::runtime_error(std::format("[audio-viz] Failed to hook {}", name));
+        }
+
+        return;
+    }
+
+    throw std::runtime_error(std::format("[audio-viz] Failed to find {} function to hook", name));
+}
+
+void ensureHyprlandVersionMatch()
+{
+    const std::string HASH = __hyprland_api_get_hash();
+    if (HASH != GIT_COMMIT_HASH)
+    {
+        HyprlandAPI::addNotification(PHANDLE, "[audio-viz] Failure in initialization: Version mismatch (headers ver is not equal to running hyprland ver)", CHyprColor{1.0, 0.2, 0.2, 1.0},
+                                     5000);
+
+        throw std::runtime_error("[audio-viz] Version mismatch");
+    }
 }
 
 extern "C" APICALL PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
 {
     PHANDLE = handle;
-
-    const std::string HASH = __hyprland_api_get_hash();
-
-    if (HASH != GIT_COMMIT_HASH)
-    {
-        HyprlandAPI::addNotification(PHANDLE, "[ht] Failure in initialization: Version mismatch (headers ver is not equal to running hyprland ver)", CHyprColor{1.0, 0.2, 0.2, 1.0},
-                                     5000);
-        throw std::runtime_error("[ht] Version mismatch");
-    }
-
-    g_pHyprRenderer->makeEGLCurrent();
-    g_shaderProg = createProgram();
-    g_loudnessUniform = glGetUniformLocation(g_shaderProg, "loudness");
-    initGeometry();
+    ensureHyprlandVersionMatch();
 
     setupSocket();
-
-    g_tick = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, &onTick, nullptr);
-    wl_event_source_timer_update(g_tick, 1);
+    setupHook(PHANDLE, "useProgram", "CHyprOpenGLImpl", (void *)::hkUseProgram, s_useProgramHook);
 
     HyprlandAPI::addNotification(PHANDLE, "Visualizer plugin loaded! 🎶", CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
+
     return {"hypr-visualizer", "Minimal shader-based music visualizer", "Dawg", "1.0"};
 }
 
 extern "C" APICALL void PLUGIN_EXIT()
 {
-    if (g_tick)
-        wl_event_source_remove(g_tick);
-    if (g_socketFD != -1)
-        close(g_socketFD);
-    glDeleteProgram(g_shaderProg);
+    // close socket on plugin unload
+    if (s_socketFD != -1)
+        close(s_socketFD);
+}
+
+// Do NOT change this function.
+APICALL EXPORT std::string PLUGIN_API_VERSION()
+{
+    // comment
+    return HYPRLAND_API_VERSION;
 }
