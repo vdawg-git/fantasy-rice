@@ -69,6 +69,8 @@ void hkApplyScreenShader(const std::string &path)
     s_finalScreenShaderProgram = g_pHyprOpenGL.get()->m_finalScreenShader.program;
 
     s_finalScreenShaderProgramReset = true;
+
+    HyprlandAPI::addNotification(PHANDLE, "Hooked applyScreenShader was called", CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 }
 
 bool tryConnectSocket()
@@ -298,7 +300,7 @@ extern "C" APICALL PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
 
     // setupSocket();
     setupHook(PHANDLE, "applyScreenShader", "CHyprOpenGLImpl", (void *)::hkApplyScreenShader, s_applyScreenShaderHook);
-    setupHook(PHANDLE, "useProgram", "CHyprOpenGLImpl", (void *)::hkUseProgram, s_useProgramHook);
+    // setupHook(PHANDLE, "useProgram", "CHyprOpenGLImpl", (void *)::hkUseProgram, s_useProgramHook);
 
     HyprlandAPI::addNotification(PHANDLE, "Visualizer plugin loaded! 🎶", CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 
