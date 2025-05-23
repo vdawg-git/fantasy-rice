@@ -42,23 +42,20 @@ static std::thread s_socketThread;
 static GLuint s_finalScreenShaderProgram = -1;
 static bool s_finalScreenShaderProgramReset = true;
 inline GLint s_loudnessUniform = -1;
+static float s_tmp = -1.0;
 
 void hkUseProgram(GLuint prog)
 {
     // call original function
     (*(useProgramOriginal)s_useProgramHook->m_original)(prog);
 
-    if (s_finalScreenShaderProgram == -1 || prog != s_finalScreenShaderProgram)
-        return;
-
-    if (s_loudnessUniform == -1 || s_finalScreenShaderProgramReset)
+    if (prog == s_finalScreenShaderProgram)
     {
-        s_loudnessUniform = glGetUniformLocation(prog, "loudness");
-        s_finalScreenShaderProgramReset = false;
-    }
+        s_tmp = 44.0;
 
-    glUniform1f(s_loudnessUniform, 5.0);
-    // glUniform1f(s_loudnessUniform, s_loudness.load());
+        glUniform1f(s_loudnessUniform, 5.0);
+        // glUniform1f(s_loudnessUniform, s_loudness.load());
+    }
 }
 
 void hkApplyScreenShader(const std::string &path)
@@ -67,10 +64,9 @@ void hkApplyScreenShader(const std::string &path)
     (*(applyScreenShaderOriginal)s_applyScreenShaderHook->m_original)(path);
 
     s_finalScreenShaderProgram = g_pHyprOpenGL.get()->m_finalScreenShader.program;
+    s_loudnessUniform = glGetUniformLocation(s_finalScreenShaderProgram, "loudness");
 
-    s_finalScreenShaderProgramReset = true;
-
-    HyprlandAPI::addNotification(PHANDLE, "Hooked applyScreenShader was called", CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
+    HyprlandAPI::addNotification(PHANDLE, std::format("{} - {} - {} - Hooked applyScreenShader was called", s_tmp, s_finalScreenShaderProgram, s_loudnessUniform), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 }
 
 bool tryConnectSocket()
@@ -264,8 +260,11 @@ void ensureHyprlandVersionMatch()
     const std::string HASH = __hyprland_api_get_hash();
     if (HASH != GIT_COMMIT_HASH)
     {
-        HyprlandAPI::addNotification(PHANDLE, "[audio-viz] Failure in initialization: Version mismatch (headers ver is not equal to running hyprland ver)", CHyprColor{1.0, 0.2, 0.2, 1.0},
-                                     5000);
+        HyprlandAPI::addNotification(
+            PHANDLE,
+            "[audio-viz] Failure in initialization: Version mismatch (headers ver is not equal to running hyprland ver)",
+            CHyprColor{1.0, 0.2, 0.2, 1.0},
+            5000);
 
         throw std::runtime_error("[audio-viz] Version mismatch");
     }
@@ -300,7 +299,7 @@ extern "C" APICALL PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
 
     // setupSocket();
     setupHook(PHANDLE, "applyScreenShader", "CHyprOpenGLImpl", (void *)::hkApplyScreenShader, s_applyScreenShaderHook);
-    // setupHook(PHANDLE, "useProgram", "CHyprOpenGLImpl", (void *)::hkUseProgram, s_useProgramHook);
+    setupHook(PHANDLE, "useProgram", "CHyprOpenGLImpl", (void *)::hkUseProgram, s_useProgramHook);
 
     HyprlandAPI::addNotification(PHANDLE, "Visualizer plugin loaded! 🎶", CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 
