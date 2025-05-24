@@ -63,7 +63,6 @@ fn bin_to_freq(bin: usize, sample_rate: usize, size: usize) -> f32 {
 
 /// Perform FFT and analyze magnitude spectrum into frequency bands
 fn compute_bands(samples: &[f32]) -> Vec<f32> {
-    println!("Samples: {}", samples);
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft_forward(SAMPLE_SIZE);
     let window = hanning_window(SAMPLE_SIZE);
