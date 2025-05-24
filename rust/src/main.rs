@@ -5,12 +5,14 @@
 mod audio;
 
 use anyhow::Context;
+use audio::analyse_samples;
 use pipewire as pw;
 use pipewire::{
     main_loop::MainLoop,
     stream::{Stream, StreamFlags},
 };
 use pw::spa::utils::Direction;
+use std::fs::remove_file;
 use std::io::Write;
 use std::os::unix::net::UnixListener;
 use std::sync::{Arc, Mutex};
@@ -18,6 +20,8 @@ use std::sync::{Arc, Mutex};
 const SOCKET_PATH: &str = "/tmp/audio_monitor.sock";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let _ = remove_file(SOCKET_PATH);
+
     pipewire::init();
 
     println!("Init audio monitor. Socket path: {}", SOCKET_PATH);
@@ -50,7 +54,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .process({
             let unix_stream = Arc::clone(&unix_stream);
             move |stream, _: &mut u32| {
-                print!("Process");
                 while let Some(mut buffer) = stream.dequeue_buffer() {
                     let data = buffer.datas_mut();
                     if data.is_empty() {
@@ -69,9 +72,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             continue;
                         };
 
-                        let msg = format!("{:.4}\n", rms);
-                        println!("Samples: {}, RMS: {:.4}", samples.len(), rms);
-                        let _ = unix_stream.lock().unwrap().write_all(msg.as_bytes());
+                        let analyzed = analyse_samples(samples);
+                        let message = format!(
+                            "{},{},{},{},{},{}",
+                            analyzed.rms,
+                            analyzed.sub_bass,
+                            analyzed.bass,
+                            analyzed.low_mids,
+                            analyzed.mids,
+                            analyzed.highs
+                        );
+
+                        println!("Samples: {}, RMS: {:?}", samples.len(), analyzed);
+
+                        let _ = unix_stream
+                            .lock()
+                            .expect("Failed to unlock unix_stream")
+                            .write_all(message.as_bytes());
                     }
                 }
             }
@@ -86,7 +103,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     println!("Audio monitor started");
-
     pw_mainloop.run();
+
     Ok(())
 }
