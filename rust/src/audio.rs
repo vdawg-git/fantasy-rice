@@ -2,16 +2,16 @@ use rustfft::{FftPlanner, num_complex::Complex};
 
 const SAMPLE_SIZE: usize = 1024; // Number of audio samples per FFT window
 const SAMPLE_RATE: usize = 48000; // Audio sample rate in Hz (samples per second)
-const MIN_DB: f32 = -60.0;
+const MIN_DB: f32 = -40.0;
 const MAX_DB: f32 = 0.0;
 
 /// Upper frequency boundaries for each band (in Hz)
 const BANDS_HZ: &[&'static f32; 5] = &[
-    &20.0,   // sub-bass
-    &250.0,  // Bass
-    &500.0,  // low-mids
-    &2000.0, // Mids
-    &6000.0, // highs
+    &250.0,   // sub-bass
+    &500.0,   // Bass
+    &2000.0,  // low-mids
+    &6000.0,  // Mids
+    &20000.0, // highs
 ];
 
 /// Result of the audio analysis
@@ -63,6 +63,7 @@ fn bin_to_freq(bin: usize, sample_rate: usize, size: usize) -> f32 {
 
 /// Perform FFT and analyze magnitude spectrum into frequency bands
 fn compute_bands(samples: &[f32]) -> Vec<f32> {
+    println!("Samples: {}", samples);
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft_forward(SAMPLE_SIZE);
     let window = hanning_window(SAMPLE_SIZE);
@@ -118,5 +119,32 @@ fn normalize_to_db(value: f32) -> f32 {
     let value = value.max(1e-6);
     let db = 20.0 * value.log10();
 
-    ((db + MIN_DB) / (MAX_DB - MIN_DB)).clamp(0.0, 1.0)
+    ((db - MIN_DB) / (MAX_DB - MIN_DB)).clamp(0.0, 1.0)
 }
+
+// Tracks its values and applies dynamic smoothing
+struct BandMeter {
+    min: f32,
+    max: f32,
+    value: f32,
+    smoothing: f32,
+}
+
+// impl BandMeter {
+//     pub fn new(smoothnes: f32) -> Self {
+//         BandMeter {
+//             min: 0.,
+//             max: 0.,
+//             value: 0.,
+//             smoothing: smoothnes,
+//         }
+//     }
+
+//     pub fn update(&mut self, newValue: f32) -> f32 {
+//         self.min = self.min * (1.0 - self.smoothing) + newValue.min(self.min) * self.smoothing;
+//         self.max = self.max * (1.0 - self.smoothing) + newValue.max(self.max) * self.smoothing;
+//         self.value = self.value * (1.0 - self.smoothing) + newValue * self.smoothing;
+
+//         let range = (self.max - self.min).max(1e-6);
+//     }
+// }

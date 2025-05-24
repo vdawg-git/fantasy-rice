@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         let analyzed = analyse_samples(samples);
                         let message = format!(
-                            "{},{},{},{},{},{}",
+                            "{},{},{},{},{},{}\n",
                             analyzed.rms,
                             analyzed.sub_bass,
                             analyzed.bass,
