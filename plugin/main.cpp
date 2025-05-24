@@ -27,10 +27,10 @@
 
 inline HANDLE PHANDLE = nullptr;
 
-typedef void (*useProgramOriginal)(GLuint);
+typedef void (*useProgramOriginal)(void *, GLuint);
 inline CFunctionHook *s_useProgramHook = nullptr;
 
-typedef void (*applyScreenShaderOriginal)(const std::string &path);
+typedef void (*applyScreenShaderOriginal)(void *, const std::string &path);
 inline CFunctionHook *s_applyScreenShaderHook = nullptr;
 
 static int s_socketFD = -1;
@@ -44,9 +44,9 @@ static bool s_finalScreenShaderProgramReset = true;
 inline GLint s_loudnessUniform = -1;
 static float s_tmp = -1.0;
 
-void hkUseProgram(GLuint prog)
+void hkUseProgram(void *thisptr, GLuint prog)
 {
-    (*(useProgramOriginal)s_useProgramHook->m_original)(prog);
+    (*(useProgramOriginal)s_useProgramHook->m_original)(thisptr, prog);
 
     // this function does get called.
     // but never this part down here
@@ -59,10 +59,10 @@ void hkUseProgram(GLuint prog)
     }
 }
 
-void hkApplyScreenShader(const std::string &path)
+void hkApplyScreenShader(void *thisptr, const std::string &path)
 {
     // Call original function first
-    (*(applyScreenShaderOriginal)s_applyScreenShaderHook->m_original)(path);
+    (*(applyScreenShaderOriginal)s_applyScreenShaderHook->m_original)(thisptr, path);
 
     s_finalScreenShaderProgram = g_pHyprOpenGL.get()->m_finalScreenShader.program;
     s_loudnessUniform = glGetUniformLocation(s_finalScreenShaderProgram, "loudness");
