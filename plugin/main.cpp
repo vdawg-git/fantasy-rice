@@ -52,10 +52,7 @@ void hkUseProgram(void *thisptr, GLuint prog)
     // but never this part down here
     if (prog == s_finalScreenShaderProgram)
     {
-        s_tmp = 44.0;
-
-        glUniform1f(s_loudnessUniform, 5.0);
-        // glUniform1f(s_loudnessUniform, s_loudness.load());
+        glUniform1f(s_loudnessUniform, s_loudness.load());
     }
 }
 

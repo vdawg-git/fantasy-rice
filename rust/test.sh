@@ -9,17 +9,9 @@ if ! command -v socat &> /dev/null; then
     exit 1
 fi
 
-# Remove the socket if it already exists
-if [ -e "$SOCKET_PATH" ]; then
-    rm "$SOCKET_PATH"
-fi
 
-echo "Starting socket listener on $SOCKET_PATH"
-echo "Waiting for connections..."
+echo "Connecting to socket at $SOCKET_PATH"
 echo "Press Ctrl+C to stop"
 
 # Listen on the Unix socket and display received data
-socat UNIX-LISTEN:"$SOCKET_PATH",fork -
-
-# Alternative approach with netcat if available
-# nc -lU "$SOCKET_PATH"
+socat - UNIX-CONNECT:"$SOCKET_PATH"

@@ -2,6 +2,8 @@
 // If music is playing on the running output, the RMS should get logged
 // and send to a socket.
 
+mod audio;
+
 use anyhow::Context;
 use pipewire as pw;
 use pipewire::{
@@ -10,7 +12,7 @@ use pipewire::{
 };
 use pw::spa::utils::Direction;
 use std::io::Write;
-use std::os::unix::net::UnixStream;
+use std::os::unix::net::UnixListener;
 use std::sync::{Arc, Mutex};
 
 const SOCKET_PATH: &str = "/tmp/audio_monitor.sock";
@@ -20,17 +22,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Init audio monitor. Socket path: {}", SOCKET_PATH);
 
-    let socket = UnixStream::connect(SOCKET_PATH).context(format!(
-        "Failed to connect to socket: {}\nHave you started the listener?",
-        SOCKET_PATH
-    ))?;
-    let socket = Arc::new(Mutex::new(socket));
-    let mainloop = MainLoop::new(None)?;
-    let context = pw::context::Context::new(&mainloop)?;
-    let core = context.connect(None)?;
+    let unix_socket = UnixListener::bind(SOCKET_PATH)
+        .context(format!("Failed to create  socket: {}", SOCKET_PATH))?;
 
-    let stream = Stream::new(
-        &core,
+    println!("Awaiting Unix connections");
+
+    let unix_stream = Arc::new(Mutex::new(unix_socket.accept()?.0));
+
+    let pw_mainloop = MainLoop::new(None)?;
+    let pw_context = pw::context::Context::new(&pw_mainloop)?;
+    let pw_core = pw_context.connect(None)?;
+
+    let pw_stream = Stream::new(
+        &pw_core,
         "audio-monitor",
         pw::properties::properties! {
             "media.class" => "Stream/Output/Audio",
@@ -41,10 +45,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Setting up stream.process handler");
 
     // 🚨 listener must be kept alive
-    let _listener = stream
+    let _listener = pw_stream
         .add_local_listener()
         .process({
-            let socket = Arc::clone(&socket);
+            let unix_stream = Arc::clone(&unix_stream);
             move |stream, _: &mut u32| {
                 print!("Process");
                 while let Some(mut buffer) = stream.dequeue_buffer() {
@@ -63,20 +67,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         };
                         if samples.is_empty() {
                             continue;
-                        }
-                        let rms = (samples.iter().map(|x| x * x).sum::<f32>()
-                            / samples.len() as f32)
-                            .sqrt();
+                        };
+
                         let msg = format!("{:.4}\n", rms);
                         println!("Samples: {}, RMS: {:.4}", samples.len(), rms);
-                        let _ = socket.lock().unwrap().write_all(msg.as_bytes());
+                        let _ = unix_stream.lock().unwrap().write_all(msg.as_bytes());
                     }
                 }
             }
         })
         .register();
 
-    stream.connect(
+    pw_stream.connect(
         Direction::Input,
         None,
         StreamFlags::AUTOCONNECT | StreamFlags::MAP_BUFFERS | StreamFlags::RT_PROCESS,
@@ -85,6 +87,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Audio monitor started");
 
-    mainloop.run();
+    pw_mainloop.run();
     Ok(())
 }

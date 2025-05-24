@@ -115,8 +115,7 @@ void main() {
         texture2D(tex, vec2(noise + uv.x - 0.0008 * loudnessClipped, uv.y)).z;
   }
 
-  // intensity
-
+  // distortion
   float pxrnd = rand(uv + timeMod);
   float ofs = 0.05 * r2 * intensity * (rnd0 > 0.5 ? 1.0 : -1.0);
   ofs += 0.5 * pxrnd * ofs;
