@@ -8,10 +8,13 @@
 #include <pthread.h>
 
 #include <any>
-#include <thread>
 #include <atomic>
 #include <mutex>
 #include <sstream>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <vector>
 
 #define private public
 #include <hyprland/src/Compositor.hpp>
@@ -21,9 +24,10 @@
 #include <hyprland/src/desktop/Window.hpp>
 #include <hyprland/src/managers/HookSystemManager.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
-#include "shaders.hpp"
 #include <hyprland/src/render/OpenGL.hpp>
 #undef private
+
+#include "shaders.hpp"
 
 inline HANDLE PHANDLE = nullptr;
 
@@ -102,6 +106,25 @@ bool tryConnectSocket()
     return true;
 }
 
+std::vector<float> parseFloats(const std::string &input, u_int amount)
+{
+    std::stringstream ss(input);
+    std::string item;
+    std::vector<float> values;
+
+    while (std::getline(ss, item, ','))
+    {
+        values.push_back(std::stof(item));
+    }
+
+    if (values.size() != amount)
+    {
+        throw std::runtime_error("Expected exactly 5 floats! (≧д≦ヾ)");
+    }
+
+    return values;
+}
+
 void processSocketData()
 {
     char buf[256];
@@ -129,10 +152,14 @@ void processSocketData()
             {
                 try
                 {
-                    float newLoudness = std::stof(line);
-                    // Optional: Add smoothing to prevent jarring transitions
-                    float currentLoudness = s_loudness.load();
-                    float smoothedLoudness = currentLoudness * 0.8f + newLoudness * 0.2f;
+                    auto newUniforms = parseFloats(line, 6);
+                    float loudness = newUniforms[0];
+                    float subBass = newUniforms[1];
+                    float bass = newUniforms[2];
+                    float lowMids = newUniforms[3];
+                    float mids = newUniforms[4];
+                    float highs = newUniforms[5];
+
                     s_loudness.store(smoothedLoudness);
                 }
                 catch (const std::exception &)
@@ -156,16 +183,19 @@ void processSocketData()
         std::lock_guard<std::mutex> lock(s_bufferMutex);
         s_readBuffer.clear();
     }
-    else if (len < 0)
+    else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
     {
-        if (errno != EAGAIN && errno != EWOULDBLOCK)
-        {
-            // Real error occurred
-            close(s_socketFD);
-            s_socketFD = -1;
-            std::lock_guard<std::mutex> lock(s_bufferMutex);
-            s_readBuffer.clear();
-        }
+        // Real error occurred
+        close(s_socketFD);
+        s_socketFD = -1;
+        HyprlandAPI::addNotification(
+            PHANDLE,
+            "[audio-viz] Failure in socket!",
+            CHyprColor{1.0, 0.2, 0.2, 1.0},
+            5000);
+        std::lock_guard<std::mutex> lock(s_bufferMutex);
+        s_readBuffer.clear();
+
         // For EAGAIN/EWOULDBLOCK, just continue - no data available right now
     }
 }
@@ -295,7 +325,7 @@ extern "C" APICALL PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
 
     s_finalScreenShaderProgram = g_pHyprOpenGL.get()->m_finalScreenShader.program;
 
-    // setupSocket();
+    setupSocket();
     setupHook(PHANDLE, "applyScreenShader", "CHyprOpenGLImpl", (void *)::hkApplyScreenShader, s_applyScreenShaderHook);
     setupHook(PHANDLE, "useProgram", "CHyprOpenGLImpl", (void *)::hkUseProgram, s_useProgramHook);
 

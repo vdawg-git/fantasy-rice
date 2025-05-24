@@ -10,6 +10,8 @@ use std::fs::remove_file;
 use std::io::Write;
 use std::os::unix::net::UnixListener;
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
+use std::time::Duration;
 
 const SOCKET_PATH: &str = "/tmp/audio_monitor.sock";
 const SAMPLE_RATE: u32 = 48000;
@@ -108,6 +110,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             .lock()
                             .expect("Failed to unlock unix_stream")
                             .write_all(message.as_bytes());
+
+                        sleep(Duration::from_millis(105));
                     }
                 }
             }
