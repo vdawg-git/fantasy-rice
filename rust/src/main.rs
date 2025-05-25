@@ -8,9 +8,10 @@ use audio::analyse_samples;
 use connection_manager::ConnectionManager;
 use itertools::Itertools;
 use pipewire::{main_loop::MainLoop, spa::utils::Direction};
+use std::iter::Inspect;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub const SOCKET_PATH: &str = "/tmp/audio_monitor.sock";
 
@@ -58,16 +59,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Setting up stream.process handler");
 
+    let mut last_emit = Instant::now();
+
     // 🚨 listener must be kept alive
     let _listener = pw_stream
         .add_local_listener()
         .process({
             let connection_manager = Arc::clone(&connection_manager);
             move |stream, _: &mut u16| {
-                while let Some(mut buffer) = stream.dequeue_buffer() {
+                let now = Instant::now();
+
+                if now - last_emit < Duration::from_millis(16) {
+                    return;
+                }
+                last_emit = now;
+
+                let mut latest_buffer = None;
+                while let Some(buffer) = stream.dequeue_buffer() {
+                    latest_buffer = Some(buffer);
+                }
+
+                if let Some(mut buffer) = latest_buffer {
                     let data = buffer.datas_mut();
                     if data.is_empty() {
-                        continue;
+                        return;
                     }
 
                     let valid_size = data[0].chunk().size() as usize;
@@ -82,21 +97,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         };
 
                         if samples.is_empty() {
-                            continue;
+                            return;
                         }
 
                         let analyzed = analyse_samples(&samples);
                         let message =
-                            format!("{:.1},{}", analyzed.rms, analyzed.bands.iter().join(","));
+                            format!("{:.1},{}\n", analyzed.rms, analyzed.bands.iter().join(","));
 
-                        println!("Analysis: {:?}", analyzed);
+                        println!(
+                        "rms: {}| subwoofer {}| subtone {}| kickdrum {}| lowBass {}| bassBody {}| midBass {}| warmth {}| lowMids {}| midsMody {}| upperMids {}| attack {}| highs {} \n",
+                        analyzed.rms,
+                        analyzed.bands[0],
+                        analyzed.bands[1],
+                        analyzed.bands[2],
+                        analyzed.bands[3],
+                        analyzed.bands[4],
+                        analyzed.bands[5],
+                        analyzed.bands[6],
+                        analyzed.bands[7],
+                        analyzed.bands[8],
+                        analyzed.bands[9],
+                        analyzed.bands[10],
+                        analyzed.bands[11],
+                        );
 
                         connection_manager
                             .lock()
                             .expect("Failed to unlock connection_manager")
                             .broadcast_message(&message);
-
-                        sleep(Duration::from_millis(105));
                     }
                 }
             }

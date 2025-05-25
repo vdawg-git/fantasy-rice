@@ -23,14 +23,32 @@ uniform mediump float upperMids;
 uniform mediump float attack;
 uniform mediump float highs;
 
-// const float loudness = 0.6;
-// const float time = 1.0;
-// const float display_framerate = 30.0;
 const float display_framerate = 60.0;
 const vec2 display_resolution = vec2(2256.0, 1504.0);
 
+#define PI 3.14159265
+
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float iHash(vec2 _v, vec2 _r) {
+  float h00 = hash(vec2(floor(_v * _r + vec2(0.0, 0.0)) / _r));
+  float h10 = hash(vec2(floor(_v * _r + vec2(1.0, 0.0)) / _r));
+  float h01 = hash(vec2(floor(_v * _r + vec2(0.0, 1.0)) / _r));
+  float h11 = hash(vec2(floor(_v * _r + vec2(1.0, 1.0)) / _r));
+  vec2 ip = vec2(smoothstep(vec2(0.0, 0.0), vec2(1.0, 1.0), mod(_v * _r, 1.)));
+  return (h00 * (1. - ip.x) + h10 * ip.x) * (1. - ip.y) +
+         (h01 * (1. - ip.x) + h11 * ip.x) * ip.y;
+}
+
+float noise(vec2 _v) {
+  float sum = 0.;
+  for (int i = 1; i < 9; i++) {
+    sum +=
+        iHash(_v + vec2(i), vec2(2. * pow(2., float(i)))) / pow(2., float(i));
+  }
+  return sum;
 }
 
 vec2 computeCubicDistortionUV(vec2 uv, float k, float kcube) {
@@ -54,7 +72,7 @@ vec3 applyCubicDistortion(sampler2D tex, vec2 uv, float distortion,
                           float extra) {
   // https://www.shadertoy.com/view/4lSGRw
 
-  float offset = .1 * sin(time * .5);
+  float offset = .1 * sin(time * .5) * distortion;
 
   float red =
       texture(tex,
@@ -104,8 +122,8 @@ vec2 pixelate(vec2 coord, float pixelSize) {
 vec2 pixelDistortionUV(vec2 uv, float strength) {
 
   // Pixelation factor (higher values for more pixelation)
-  float pixelationFactor = sin(time * 0.5) * 50.0 + 50.0 +
-                           hash(vec2(time, cos(time / 2.0) * 12.0)) * 80.05;
+  float pixelationFactor = sin(time * 0.5) * 50.0 + 70.0 +
+                           hash(vec2(time, cos(time / 2.0) * 12.0)) * 50.0;
   ;
 
   // Use pixelated texture coordinates for displacement
@@ -117,28 +135,56 @@ vec2 pixelDistortionUV(vec2 uv, float strength) {
   return pixelatedCoord;
 }
 
+// float timeMod = mod(time * 100.0, 32.0) / 110.0;
+
 void main() {
   vec2 uv = v_texcoord;
 
-  float timeMod = mod(time * 100.0, 32.0) / 110.0;
+  float bass = (subwoofer + subtone + kickdrum * 0.25) / 2.25;
 
-  bool isPixelating = true;
+  // rms: 0.27832186| subwoofer 0.9590597| subtone 0| kickdrum 1| lowBass 0|
+  // bassBody 0| midBass 1| warmth 0.60537446| lowMids 0.4150363| midsMody
+  // 0.31651106| upperMids 0.004805756| attack 0| highs 0
+  bool isPixelating = loudness > 0.26 && subwoofer > 0.9 && kickdrum > 0.9 &&
+                      midBass > 0.8 && warmth > 0.5 && lowMids > 0.5 &&
+                      hash(vec2(time, sin(time))) > 0.3;
   if (isPixelating) {
-
     uv = pixelDistortionUV(uv, 1.);
   }
+
+  // tape crease
+  float tcPhase =
+      clamp((sin(uv.y * 8.0 - time * (lowBass + bassBody + midBass)) - 0.96) *
+                noise(vec2(time)),
+            0.0, 0.01) *
+      (10.0 * (midsMody) + (midBass + bass + lowBass) * 4.);
+  float tcNoise = max(noise(vec2(uv.y * 100.0, time * 10.0)) - 0.5, 0.0);
+  uv.x = uv.x - tcNoise * tcPhase;
+
+  // switching noise
+  float snPhase = smoothstep(0.03, 0.0, uv.y) * warmth * warmth * warmth;
+  uv.y += snPhase * 0.3;
+  uv.x +=
+      snPhase *
+      ((noise(vec2(uv.y * 100.0, time * 10.0 + warmth + lowBass)) - 0.5) * 0.2);
 
   vec4 pixColor = texture(tex, uv);
 
   vec3 color = pixColor.rgb;
 
-  float cubicStrength = -1.0;
-  float cubicStrengthExtra = -0.5;
+  // Cubic distortion
+  float cubicStrength = -1.0 * bass;
+  float cubicStrengthExtra = -1.0 * lowBass;
   vec2 uvDistorted =
       computeCubicDistortionUV(uv, cubicStrength, cubicStrengthExtra);
-  color = applyCubicDistortion(tex, uv, -1.0, -0.5);
+  color = applyCubicDistortion(tex, uv, cubicStrength, cubicStrengthExtra);
 
-  color = tanh(color + getBloom(tex, uvDistorted, 5.0, 1.5));
+  // BLOOM
+  float bloomStrength = (midsMody + attack * 2.0 + upperMids) / 4.0 * 5.0;
+  float bloomBrightness = bloomStrength / 2. * attack * 5.0 + 1.;
+  color =
+      tanh(color + getBloom(tex, uvDistorted, bloomStrength, bloomBrightness));
 
+  // color *= bass + 1.0;
   fragColor = vec4(color, 1.);
 }

@@ -107,6 +107,8 @@ void hkApplyScreenShader(void *thisptr, const std::string &path)
     s_attackUniform = glGetUniformLocation(s_finalScreenShaderProgram, "attack");
     s_highsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "highs");
 
+    auto bands = *s_audioBands.load();
+    HyprlandAPI::addNotification(PHANDLE, std::format("{}", bands), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
     // HyprlandAPI::addNotification(PHANDLE, std::format("{}\n{}\n{}\nHooked applyScreenShader was called", s_finalScreenShaderProgram, s_loudnessUniform, s_loudness.load()), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 }
 
@@ -130,7 +132,6 @@ bool tryConnectSocket()
 
     if (connect(s_socketFD, (sockaddr *)&addr, sizeof(addr)) < 0)
     {
-        HyprlandAPI::addNotification(PHANDLE, std::format("Failed to connect to socket: {}", SOCKET_PATH), CHyprColor{0.8f, 0.0f, 0.0f, 1.0f}, 4000);
         close(s_socketFD);
         s_socketFD = -1;
         return false;
@@ -199,7 +200,6 @@ void processSocketData()
             try
             {
                 auto parsed = parseFloats(lastLine, BANDS_AMOUNT);
-
                 s_audioBands.store(std::make_shared<std::vector<float>>(std::move(parsed)));
             }
             catch (const std::exception &error)
@@ -252,7 +252,7 @@ void socketWorkerThread()
         }
 
         // Sleep for ~16ms (60fps equivalent)
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
     }
 
     // Cleanup on exit
@@ -272,8 +272,7 @@ void setupSocket()
     // Initial connection attempt (non-blocking)
     if (!tryConnectSocket())
     {
-        HyprlandAPI::addNotification(PHANDLE, "[audio-viz] Audio socket not available yet, will retry in background...",
-                                     CHyprColor{1.0, 1.0, 0.2, 1.0}, 3000);
+        HyprlandAPI::addNotification(PHANDLE, "[audio-viz] Audio socket not available yet, will retry in background...", CHyprColor{1.0, 1.0, 0.2, 1.0}, 3000);
     }
 }
 
