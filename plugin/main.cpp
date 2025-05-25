@@ -38,25 +38,38 @@ typedef void (*applyScreenShaderOriginal)(void *, const std::string &path);
 inline CFunctionHook *s_applyScreenShaderHook = nullptr;
 
 static int s_socketFD = -1;
-static std::atomic<float> s_loudness{0.0f};
-static std::string s_readBuffer; // Buffer for incomplete reads
-static std::mutex s_bufferMutex; // Protect the read buffer
 static std::atomic<bool> s_shouldExit{false};
 static std::thread s_socketThread;
 static GLuint s_finalScreenShaderProgram = -1;
-static bool s_finalScreenShaderProgramReset = true;
+
+static std::atomic<float> s_loudness{0.0f};
+static std::atomic<float> s_subBass{0.0f};
+static std::atomic<float> s_bass{0.0f};
+static std::atomic<float> s_lowMids{0.0f};
+static std::atomic<float> s_mids{0.0f};
+static std::atomic<float> s_highs{0.0f};
+
 inline GLint s_loudnessUniform = -1;
+inline GLint s_subBassUniform = -1;
+inline GLint s_bassUniform = -1;
+inline GLint s_lowMidsUniform = -1;
+inline GLint s_midsUniform = -1;
+inline GLint s_highsUniform = -1;
+
 static float s_tmp = -1.0;
 
 void hkUseProgram(void *thisptr, GLuint prog)
 {
     (*(useProgramOriginal)s_useProgramHook->m_original)(thisptr, prog);
 
-    // this function does get called.
-    // but never this part down here
     if (prog == s_finalScreenShaderProgram)
     {
         glUniform1f(s_loudnessUniform, s_loudness.load());
+        glUniform1f(s_subBassUniform, s_subBass.load());
+        glUniform1f(s_bassUniform, s_bass.load());
+        glUniform1f(s_lowMidsUniform, s_lowMids.load());
+        glUniform1f(s_midsUniform, s_mids.load());
+        glUniform1f(s_highsUniform, s_highs.load());
     }
 }
 
@@ -66,7 +79,13 @@ void hkApplyScreenShader(void *thisptr, const std::string &path)
     (*(applyScreenShaderOriginal)s_applyScreenShaderHook->m_original)(thisptr, path);
 
     s_finalScreenShaderProgram = g_pHyprOpenGL.get()->m_finalScreenShader.program;
+
     s_loudnessUniform = glGetUniformLocation(s_finalScreenShaderProgram, "loudness");
+    s_subBassUniform = glGetUniformLocation(s_finalScreenShaderProgram, "subBass");
+    s_bassUniform = glGetUniformLocation(s_finalScreenShaderProgram, "bass");
+    s_lowMidsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "lowMids");
+    s_midsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "mids");
+    s_highsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "highs");
 
     HyprlandAPI::addNotification(PHANDLE, std::format("{} - {} - {} - Hooked applyScreenShader was called", s_tmp, s_finalScreenShaderProgram, s_loudnessUniform), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 }
@@ -133,70 +152,35 @@ void processSocketData()
     if (len > 0)
     {
         buf[len] = '\0';
+        std::string line(buf);
+        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end()); // Strip newline
 
+        try
         {
-            std::lock_guard<std::mutex> lock(s_bufferMutex);
-            s_readBuffer += buf;
+            auto parsed = parseFloats(line, 6);
+
+            s_loudness.store(parsed[0]);
+            s_subBass.store(parsed[1]);
+            s_bass.store(parsed[2]);
+            s_lowMids.store(parsed[3]);
+            s_mids.store(parsed[4]);
+            s_highs.store(parsed[5]);
         }
-
-        // Process all complete lines in the buffer
-        std::lock_guard<std::mutex> lock(s_bufferMutex);
-        size_t pos;
-        while ((pos = s_readBuffer.find('\n')) != std::string::npos)
+        catch (const std::exception &)
         {
-            std::string line = s_readBuffer.substr(0, pos);
-            s_readBuffer.erase(0, pos + 1);
-
-            // Parse the line
-            if (!line.empty())
-            {
-                try
-                {
-                    auto newUniforms = parseFloats(line, 6);
-                    float loudness = newUniforms[0];
-                    float subBass = newUniforms[1];
-                    float bass = newUniforms[2];
-                    float lowMids = newUniforms[3];
-                    float mids = newUniforms[4];
-                    float highs = newUniforms[5];
-
-                    s_loudness.store(smoothedLoudness);
-                }
-                catch (const std::exception &)
-                {
-                    // Invalid data, ignore this line
-                }
-            }
-        }
-
-        // Keep buffer size reasonable
-        if (s_readBuffer.size() > 1024)
-        {
-            s_readBuffer.clear();
+            // Bad data, ignore
         }
     }
-    else if (len == 0)
+    else if (len == 0 || (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK))
     {
-        // Socket closed by peer
         close(s_socketFD);
         s_socketFD = -1;
-        std::lock_guard<std::mutex> lock(s_bufferMutex);
-        s_readBuffer.clear();
-    }
-    else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
-    {
-        // Real error occurred
-        close(s_socketFD);
-        s_socketFD = -1;
+
         HyprlandAPI::addNotification(
             PHANDLE,
-            "[audio-viz] Failure in socket!",
+            "[audio-viz] Socket error or closed",
             CHyprColor{1.0, 0.2, 0.2, 1.0},
             5000);
-        std::lock_guard<std::mutex> lock(s_bufferMutex);
-        s_readBuffer.clear();
-
-        // For EAGAIN/EWOULDBLOCK, just continue - no data available right now
     }
 }
 
@@ -215,12 +199,7 @@ void socketWorkerThread()
             if (++reconnectCounter > 60)
             {
                 reconnectCounter = 0;
-                if (tryConnectSocket())
-                {
-                    // Successfully connected, reset buffer
-                    std::lock_guard<std::mutex> lock(s_bufferMutex);
-                    s_readBuffer.clear();
-                }
+                tryConnectSocket();
             }
         }
         else
