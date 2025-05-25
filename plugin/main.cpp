@@ -29,6 +29,8 @@
 
 #include "shaders.hpp"
 
+const char *SOCKET_PATH = "/tmp/audio_monitor.sock";
+
 inline HANDLE PHANDLE = nullptr;
 
 typedef void (*useProgramOriginal)(void *, GLuint);
@@ -56,8 +58,6 @@ inline GLint s_lowMidsUniform = -1;
 inline GLint s_midsUniform = -1;
 inline GLint s_highsUniform = -1;
 
-static float s_tmp = -1.0;
-
 void hkUseProgram(void *thisptr, GLuint prog)
 {
     (*(useProgramOriginal)s_useProgramHook->m_original)(thisptr, prog);
@@ -78,7 +78,7 @@ void hkApplyScreenShader(void *thisptr, const std::string &path)
     // Call original function first
     (*(applyScreenShaderOriginal)s_applyScreenShaderHook->m_original)(thisptr, path);
 
-    s_finalScreenShaderProgram = g_pHyprOpenGL.get()->m_finalScreenShader.program;
+    s_finalScreenShaderProgram = g_pHyprOpenGL->m_finalScreenShader.program;
 
     s_loudnessUniform = glGetUniformLocation(s_finalScreenShaderProgram, "loudness");
     s_subBassUniform = glGetUniformLocation(s_finalScreenShaderProgram, "subBass");
@@ -87,7 +87,7 @@ void hkApplyScreenShader(void *thisptr, const std::string &path)
     s_midsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "mids");
     s_highsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "highs");
 
-    HyprlandAPI::addNotification(PHANDLE, std::format("{} - {} - {} - Hooked applyScreenShader was called", s_tmp, s_finalScreenShaderProgram, s_loudnessUniform), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
+    HyprlandAPI::addNotification(PHANDLE, std::format("{} - {} - Hooked applyScreenShader was called", s_finalScreenShaderProgram, s_loudnessUniform), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 }
 
 bool tryConnectSocket()
@@ -106,7 +106,7 @@ bool tryConnectSocket()
 
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, "/tmp/audio_monitor.sock", sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, SOCKET_PATH, sizeof(addr.sun_path) - 1);
 
     if (connect(s_socketFD, (sockaddr *)&addr, sizeof(addr)) < 0)
     {
@@ -122,9 +122,12 @@ bool tryConnectSocket()
         fcntl(s_socketFD, F_SETFL, flags | O_NONBLOCK);
     }
 
+    HyprlandAPI::addNotification(PHANDLE, std::format("Connected to socket: {}", SOCKET_PATH), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
+
     return true;
 }
 
+// Parses comma delimited floats from a string
 std::vector<float> parseFloats(const std::string &input, u_int amount)
 {
     std::stringstream ss(input);
@@ -138,7 +141,7 @@ std::vector<float> parseFloats(const std::string &input, u_int amount)
 
     if (values.size() != amount)
     {
-        throw std::runtime_error("Expected exactly 5 floats! (≧д≦ヾ)");
+        throw std::runtime_error(std::format("Expected exactly {} floats! (≧д≦ヾ)", amount));
     }
 
     return values;
