@@ -2,31 +2,42 @@
 // If music is playing on the running output, the RMS should get logged
 // and send to a socket.
 mod audio;
+mod connection_manager;
 
-use anyhow::Context;
 use audio::analyse_samples;
+use connection_manager::ConnectionManager;
 use pipewire::{main_loop::MainLoop, spa::utils::Direction};
-use std::fs::remove_file;
-use std::io::Write;
-use std::os::unix::net::UnixListener;
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
+use std::thread::{self, sleep};
 use std::time::Duration;
 
-const SOCKET_PATH: &str = "/tmp/audio_monitor.sock";
-const SAMPLE_RATE: u32 = 48000;
-const CHANNELS: u32 = 2; // Stereo
+pub const SOCKET_PATH: &str = "/tmp/audio_monitor.sock";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _ = remove_file(SOCKET_PATH);
     pipewire::init();
 
     println!("Init audio monitor. Socket path: {}", SOCKET_PATH);
 
-    let unix_socket = UnixListener::bind(SOCKET_PATH)
-        .context(format!("Failed to create socket: {}", SOCKET_PATH))?;
-    println!("Awaiting Unix connections");
-    let unix_stream = Arc::new(Mutex::new(unix_socket.accept()?.0));
+    let connection_manager = Arc::new(Mutex::new(ConnectionManager::new(SOCKET_PATH)?));
+    println!("Socket created, accepting multiple connections...");
+
+    // Optional: spawn a background thread to periodically report client count
+    let connection_manager_clone = Arc::clone(&connection_manager);
+    thread::spawn(move || {
+        let mut last_count = 0;
+        loop {
+            sleep(Duration::from_secs(10));
+            let current_count = connection_manager_clone
+                .lock()
+                .expect("Failed to lock connection manager")
+                .client_count();
+
+            if current_count != last_count {
+                println!("Active clients: {}", current_count);
+                last_count = current_count;
+            }
+        }
+    });
 
     let pw_mainloop = MainLoop::new(None)?;
     let pw_context = pipewire::context::Context::new(&pw_mainloop)?;
@@ -50,7 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _listener = pw_stream
         .add_local_listener()
         .process({
-            let unix_stream = Arc::clone(&unix_stream);
+            let connection_manager = Arc::clone(&connection_manager);
             move |stream, _: &mut u16| {
                 while let Some(mut buffer) = stream.dequeue_buffer() {
                     let data = buffer.datas_mut();
@@ -95,7 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         let analyzed = analyse_samples(&samples);
                         let message = format!(
-                            "{},{},{},{},{},{}\n",
+                            "{:.1},{:.1},{:.1},{:.1},{:.1},{:.1}\n",
                             analyzed.rms,
                             analyzed.sub_bass,
                             analyzed.bass,
@@ -106,20 +117,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         // println!("Analysis: {:?}", analyzed);
 
-                        let _ = unix_stream
+                        connection_manager
                             .lock()
-                            .expect("Failed to unlock unix_stream")
-                            .write_all(message.as_bytes());
+                            .expect("Failed to unlock connection_manager")
+                            .broadcast_message(&message);
 
-                        sleep(Duration::from_millis(105));
+                        sleep(Duration::from_millis(15));
                     }
                 }
             }
         })
         .register();
-
-    // For now, let's try without explicit format parameters
-    // PipeWire should negotiate a suitable format automatically
 
     pw_stream.connect(
         Direction::Input,

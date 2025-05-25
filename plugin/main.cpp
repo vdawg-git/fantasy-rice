@@ -87,7 +87,7 @@ void hkApplyScreenShader(void *thisptr, const std::string &path)
     s_midsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "mids");
     s_highsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "highs");
 
-    HyprlandAPI::addNotification(PHANDLE, std::format("{} - {} - Hooked applyScreenShader was called", s_finalScreenShaderProgram, s_loudnessUniform), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
+    HyprlandAPI::addNotification(PHANDLE, std::format("{}\n{}\n{}\nHooked applyScreenShader was called", s_finalScreenShaderProgram, s_loudnessUniform, s_loudness.load()), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 }
 
 bool tryConnectSocket()
@@ -110,6 +110,7 @@ bool tryConnectSocket()
 
     if (connect(s_socketFD, (sockaddr *)&addr, sizeof(addr)) < 0)
     {
+        HyprlandAPI::addNotification(PHANDLE, std::format("Failed to connect to socket: {}", SOCKET_PATH), CHyprColor{0.8f, 0.0f, 0.0f, 1.0f}, 4000);
         close(s_socketFD);
         s_socketFD = -1;
         return false;
@@ -147,32 +148,55 @@ std::vector<float> parseFloats(const std::string &input, u_int amount)
     return values;
 }
 
+// Persistent buffer to accumulate data across multiple reads
+static std::string bufferToRead;
+
 void processSocketData()
 {
-    char buf[256];
-    ssize_t len = read(s_socketFD, buf, sizeof(buf) - 1);
+    char buf[256];                                        // Temporary buffer to hold raw bytes
+    ssize_t len = read(s_socketFD, buf, sizeof(buf) - 1); // Read up to 255 bytes
 
     if (len > 0)
     {
-        buf[len] = '\0';
-        std::string line(buf);
-        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end()); // Strip newline
+        buf[len] = '\0';                  // Null-terminate raw buffer
+        bufferToRead += std::string(buf); // Append new data to the persistent buffer
 
-        try
+        // Look for the last complete line (ending with '\n')
+        size_t lastNewline = bufferToRead.rfind('\n');
+        if (lastNewline != std::string::npos)
         {
-            auto parsed = parseFloats(line, 6);
+            std::string lastLine = bufferToRead.substr(0, lastNewline); // All complete lines
+            bufferToRead.erase(0, lastNewline + 1);                     // Remove processed lines from buffer
 
-            s_loudness.store(parsed[0]);
-            s_subBass.store(parsed[1]);
-            s_bass.store(parsed[2]);
-            s_lowMids.store(parsed[3]);
-            s_mids.store(parsed[4]);
-            s_highs.store(parsed[5]);
+            // Only want the final line of those
+            size_t secondLastNewline = lastLine.rfind('\n');
+            if (secondLastNewline != std::string::npos)
+                lastLine = lastLine.substr(secondLastNewline + 1); // Just the final one
+
+            // Clean up newline (not strictly needed anymore)
+            lastLine.erase(std::remove(lastLine.begin(), lastLine.end(), '\n'), lastLine.end());
+
+            try
+            {
+                auto parsed = parseFloats(lastLine, 6);
+
+                s_loudness.store(parsed[0]);
+                s_subBass.store(parsed[1]);
+                s_bass.store(parsed[2]);
+                s_lowMids.store(parsed[3]);
+                s_mids.store(parsed[4]);
+                s_highs.store(parsed[5]);
+            }
+            catch (const std::exception &error)
+            {
+                HyprlandAPI::addNotification(
+                    PHANDLE,
+                    std::format("Bad data\n{}\n{}", error.what(), lastLine),
+                    CHyprColor{1.0, 0.2, 0.2, 1.0},
+                    5000);
+            }
         }
-        catch (const std::exception &)
-        {
-            // Bad data, ignore
-        }
+        // Else: no complete line yet → do nothing until the buffer has a full line!
     }
     else if (len == 0 || (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK))
     {
@@ -196,6 +220,7 @@ void socketWorkerThread()
 
     while (!s_shouldExit.load())
     {
+
         if (s_socketFD == -1)
         {
             // Try to reconnect every 60 iterations (~1 second at 60fps)
@@ -212,7 +237,7 @@ void socketWorkerThread()
         }
 
         // Sleep for ~16ms (60fps equivalent)
-        std::this_thread::sleep_for(std::chrono::seconds(16));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     // Cleanup on exit
@@ -234,11 +259,6 @@ void setupSocket()
     {
         HyprlandAPI::addNotification(PHANDLE, "[audio-viz] Audio socket not available yet, will retry in background...",
                                      CHyprColor{1.0, 1.0, 0.2, 1.0}, 3000);
-    }
-    else
-    {
-        HyprlandAPI::addNotification(PHANDLE, "[audio-viz] Connected to audio socket!",
-                                     CHyprColor{0.2, 1.0, 0.2, 1.0}, 3000);
     }
 }
 
