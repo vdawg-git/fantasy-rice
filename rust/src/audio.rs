@@ -6,11 +6,18 @@ const MIN_DB: f32 = -40.0;
 const MAX_DB: f32 = 0.0;
 
 /// Upper frequency boundaries for each band (in Hz)
-const BANDS_HZ: &[&'static f32; 5] = &[
-    &250.0,   // sub-bass
-    &500.0,   // Bass
-    &2000.0,  // low-mids
-    &6000.0,  // Mids
+const BANDS_HZ: &[&'static f32; 12] = &[
+    &30.0,    // subwoofer
+    &40.0,    // subtone
+    &50.0,    // kickdrum
+    &70.0,    // lowBass
+    &90.0,    // bassBody
+    &110.0,   // midBass
+    &250.0,   // warmth
+    &400.0,   // lowMids
+    &700.0,   // midsMody
+    &1200.0,  // upperMids
+    &2500.0,  // attack
     &20000.0, // highs
 ];
 
@@ -19,11 +26,7 @@ const BANDS_HZ: &[&'static f32; 5] = &[
 #[derive(Debug)]
 pub struct AnalyzedSamples {
     pub rms: f32, // Root Mean Square (loudness)
-    pub sub_bass: f32,
-    pub bass: f32,
-    pub low_mids: f32,
-    pub mids: f32,
-    pub highs: f32,
+    pub bands: Vec<f32>,
 }
 
 /// Main function that takes raw audio samples and extracts energy per band + loudness
@@ -31,14 +34,7 @@ pub fn analyse_samples(samples: &[f32]) -> AnalyzedSamples {
     let rms = calcualte_rms(samples); // Perceived loudness (overall energy)
     let bands = compute_bands(samples);
 
-    AnalyzedSamples {
-        rms,
-        sub_bass: bands[0],
-        bass: bands[1],
-        low_mids: bands[2],
-        mids: bands[3],
-        highs: bands[4],
-    }
+    AnalyzedSamples { rms, bands }
 }
 
 /// Root Mean Square (RMS) = sqrt(mean(x²))
@@ -104,30 +100,33 @@ fn compute_bands(samples: &[f32]) -> Vec<f32> {
     band_vals
         .iter()
         .zip(band_counts.iter())
-        .map(
-            |(sum, count)| {
-                if *count > 0 { sum / *count as f32 } else { 0.0 }
-            },
-        )
+        .map(|(sum, count)| {
+            if *count > 0 {
+                normalize_to_db(sum / *count as f32)
+            } else {
+                0.0
+            }
+        })
         .collect()
 }
 
 /// Takes the magnitude, converts to db, and normalizes to 0..1
-/// 0 means -60db or lower. 1 means 0db or higher.
-fn normalize_to_db(value: f32) -> f32 {
-    let value = value.max(1e-6);
+fn normalize_to_db(magnitude: f32) -> f32 {
+    // It is not uncommon for a band to have magnitudes over 30
+    let max_magnitude = 60.0;
+    let value = (magnitude / max_magnitude).max(1e-6);
     let db = 20.0 * value.log10();
 
     ((db - MIN_DB) / (MAX_DB - MIN_DB)).clamp(0.0, 1.0)
 }
 
 // Tracks its values and applies dynamic smoothing
-struct BandMeter {
-    min: f32,
-    max: f32,
-    value: f32,
-    smoothing: f32,
-}
+// struct BandMeter {
+//     min: f32,
+//     max: f32,
+//     value: f32,
+//     smoothing: f32,
+// }
 
 // impl BandMeter {
 //     pub fn new(smoothnes: f32) -> Self {

@@ -31,6 +31,9 @@
 
 const char *SOCKET_PATH = "/tmp/audio_monitor.sock";
 
+// including loudness
+const int BANDS_AMOUNT = 13;
+
 inline HANDLE PHANDLE = nullptr;
 
 typedef void (*useProgramOriginal)(void *, GLuint);
@@ -44,18 +47,20 @@ static std::atomic<bool> s_shouldExit{false};
 static std::thread s_socketThread;
 static GLuint s_finalScreenShaderProgram = -1;
 
-static std::atomic<float> s_loudness{0.0f};
-static std::atomic<float> s_subBass{0.0f};
-static std::atomic<float> s_bass{0.0f};
-static std::atomic<float> s_lowMids{0.0f};
-static std::atomic<float> s_mids{0.0f};
-static std::atomic<float> s_highs{0.0f};
+static std::atomic<std::shared_ptr<std::vector<float>>> s_audioBands;
 
 inline GLint s_loudnessUniform = -1;
-inline GLint s_subBassUniform = -1;
-inline GLint s_bassUniform = -1;
+inline GLint s_subwooferUniform = -1;
+inline GLint s_subtoneUniform = -1;
+inline GLint s_kickdrumUniform = -1;
+inline GLint s_lowBassUniform = -1;
+inline GLint s_bassBodyUniform = -1;
+inline GLint s_midBassUniform = -1;
+inline GLint s_warmthUniform = -1;
 inline GLint s_lowMidsUniform = -1;
-inline GLint s_midsUniform = -1;
+inline GLint s_midsModyUniform = -1;
+inline GLint s_upperMidsUniform = -1;
+inline GLint s_attackUniform = -1;
 inline GLint s_highsUniform = -1;
 
 void hkUseProgram(void *thisptr, GLuint prog)
@@ -64,12 +69,20 @@ void hkUseProgram(void *thisptr, GLuint prog)
 
     if (prog == s_finalScreenShaderProgram)
     {
-        glUniform1f(s_loudnessUniform, s_loudness.load());
-        glUniform1f(s_subBassUniform, s_subBass.load());
-        glUniform1f(s_bassUniform, s_bass.load());
-        glUniform1f(s_lowMidsUniform, s_lowMids.load());
-        glUniform1f(s_midsUniform, s_mids.load());
-        glUniform1f(s_highsUniform, s_highs.load());
+        auto bandsData = *s_audioBands.load().get();
+        glUniform1f(s_loudnessUniform, bandsData[0]);
+        glUniform1f(s_subwooferUniform, bandsData[1]);
+        glUniform1f(s_subtoneUniform, bandsData[2]);
+        glUniform1f(s_kickdrumUniform, bandsData[3]);
+        glUniform1f(s_lowBassUniform, bandsData[4]);
+        glUniform1f(s_bassBodyUniform, bandsData[5]);
+        glUniform1f(s_midBassUniform, bandsData[6]);
+        glUniform1f(s_warmthUniform, bandsData[7]);
+        glUniform1f(s_lowMidsUniform, bandsData[8]);
+        glUniform1f(s_midsModyUniform, bandsData[9]);
+        glUniform1f(s_upperMidsUniform, bandsData[10]);
+        glUniform1f(s_attackUniform, bandsData[11]);
+        glUniform1f(s_highsUniform, bandsData[12]);
     }
 }
 
@@ -81,13 +94,20 @@ void hkApplyScreenShader(void *thisptr, const std::string &path)
     s_finalScreenShaderProgram = g_pHyprOpenGL->m_finalScreenShader.program;
 
     s_loudnessUniform = glGetUniformLocation(s_finalScreenShaderProgram, "loudness");
-    s_subBassUniform = glGetUniformLocation(s_finalScreenShaderProgram, "subBass");
-    s_bassUniform = glGetUniformLocation(s_finalScreenShaderProgram, "bass");
+    s_subwooferUniform = glGetUniformLocation(s_finalScreenShaderProgram, "subwoofer");
+    s_subtoneUniform = glGetUniformLocation(s_finalScreenShaderProgram, "subtone");
+    s_kickdrumUniform = glGetUniformLocation(s_finalScreenShaderProgram, "kickdrum");
+    s_lowBassUniform = glGetUniformLocation(s_finalScreenShaderProgram, "lowBass");
+    s_bassBodyUniform = glGetUniformLocation(s_finalScreenShaderProgram, "bassBody");
+    s_midBassUniform = glGetUniformLocation(s_finalScreenShaderProgram, "midBass");
+    s_warmthUniform = glGetUniformLocation(s_finalScreenShaderProgram, "warmth");
     s_lowMidsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "lowMids");
-    s_midsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "mids");
+    s_midsModyUniform = glGetUniformLocation(s_finalScreenShaderProgram, "mids");
+    s_upperMidsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "upperMids");
+    s_attackUniform = glGetUniformLocation(s_finalScreenShaderProgram, "attack");
     s_highsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "highs");
 
-    HyprlandAPI::addNotification(PHANDLE, std::format("{}\n{}\n{}\nHooked applyScreenShader was called", s_finalScreenShaderProgram, s_loudnessUniform, s_loudness.load()), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
+    // HyprlandAPI::addNotification(PHANDLE, std::format("{}\n{}\n{}\nHooked applyScreenShader was called", s_finalScreenShaderProgram, s_loudnessUniform, s_loudness.load()), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 }
 
 bool tryConnectSocket()
@@ -178,14 +198,9 @@ void processSocketData()
 
             try
             {
-                auto parsed = parseFloats(lastLine, 6);
+                auto parsed = parseFloats(lastLine, BANDS_AMOUNT);
 
-                s_loudness.store(parsed[0]);
-                s_subBass.store(parsed[1]);
-                s_bass.store(parsed[2]);
-                s_lowMids.store(parsed[3]);
-                s_mids.store(parsed[4]);
-                s_highs.store(parsed[5]);
+                s_audioBands.store(std::make_shared<std::vector<float>>(std::move(parsed)));
             }
             catch (const std::exception &error)
             {
@@ -326,6 +341,9 @@ extern "C" APICALL PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
     ensureHyprlandVersionMatch();
 
     s_finalScreenShaderProgram = g_pHyprOpenGL.get()->m_finalScreenShader.program;
+
+    // init bands pointer empty
+    s_audioBands.store(std::make_shared<std::vector<float>>(BANDS_AMOUNT));
 
     setupSocket();
     setupHook(PHANDLE, "applyScreenShader", "CHyprOpenGLImpl", (void *)::hkApplyScreenShader, s_applyScreenShaderHook);

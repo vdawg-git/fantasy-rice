@@ -6,6 +6,7 @@ mod connection_manager;
 
 use audio::analyse_samples;
 use connection_manager::ConnectionManager;
+use itertools::Itertools;
 use pipewire::{main_loop::MainLoop, spa::utils::Direction};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
@@ -84,45 +85,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             continue;
                         }
 
-                        // Debug: Check if we're getting actual audio data
-                        let non_zero_count = samples.iter().filter(|&&x| x.abs() > 0.0001).count();
-                        let max_sample = samples.iter().fold(0.0f32, |a, &b| a.max(b.abs()));
-
-                        if non_zero_count > 0 {
-                            println!(
-                                "Got {} samples, {} non-zero, max: {:.2}",
-                                samples.len(),
-                                non_zero_count,
-                                max_sample
-                            );
-                            // println!("{:?}", samples);
-                        } else {
-                            println!(
-                                "All samples are effectively zero (got {} samples)",
-                                samples.len()
-                            );
-                            continue; // Skip processing if all samples are zero
-                        }
-
                         let analyzed = analyse_samples(&samples);
-                        let message = format!(
-                            "{:.1},{:.1},{:.1},{:.1},{:.1},{:.1}\n",
-                            analyzed.rms,
-                            analyzed.sub_bass,
-                            analyzed.bass,
-                            analyzed.low_mids,
-                            analyzed.mids,
-                            analyzed.highs
-                        );
+                        let message =
+                            format!("{:.1},{}", analyzed.rms, analyzed.bands.iter().join(","));
 
-                        // println!("Analysis: {:?}", analyzed);
+                        println!("Analysis: {:?}", analyzed);
 
                         connection_manager
                             .lock()
                             .expect("Failed to unlock connection_manager")
                             .broadcast_message(&message);
 
-                        sleep(Duration::from_millis(15));
+                        sleep(Duration::from_millis(105));
                     }
                 }
             }
