@@ -1,0 +1,1 @@
+mpvpaper ALL /home/vdawg/Videos/low_income_barony/bg.mp4  -o "--input-ipc-server=/tmp/mpv-lycris.sock --loop-playlist   --slang=en   --sid=1  --sub-border-size=1   --sub-shadow-offset=2 --sub-font-size=20    --sub-margin-y=40     --video-margin-ratio-top=0.15 --video-margin-ratio-bottom=0.15 --sub-color=\"#FDDA0D\" "

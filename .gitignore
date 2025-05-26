@@ -2,3 +2,4 @@
 generated_*
 *gmon.out
 .vscode
+**/node_modules/** 

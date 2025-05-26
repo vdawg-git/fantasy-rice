@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@types/figlet": "^1.7.0",
+    "@types/node": "^22.15.21",
+    "ts-pattern": "^5.7.1"
+  }
+}
