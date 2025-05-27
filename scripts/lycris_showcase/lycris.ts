@@ -1,10 +1,11 @@
-import path from "node:path"
 import { connectSocket, createPayload } from "./socket"
-import fs from "node:fs/promises"
 import { match, P } from "ts-pattern"
 import { filter, interval, map, merge, Observable, of, switchMap } from "rxjs"
 import figlet from "figlet"
 import type { JsonValue } from "type-fest"
+import path from "node:path"
+import { readdir } from "node:fs/promises"
+import { exec, execSync, type ChildProcess } from "node:child_process"
 
 const SOCKET_PATH = "/tmp/mpv-lycris.sock" as const
 
@@ -23,26 +24,44 @@ const { events$, client } = await connectSocket(SOCKET_PATH, (data) =>
 		})
 		.filter(Boolean)
 )
-// the 1 is a required id, which will be send back
+// the 1 is a required id, which will be send back by the socket
 client.write(createPayload("observe_property", [1, "sub-text"]).payload)
 
-const fontsToUse: figlet.Fonts[] = ["Big Money-ne"]
+const fontsToUse: figlet.Fonts[] = (
+	[
+		"Big Money-ne",
+		"Graffiti",
+		"Fire Font-s",
+		"Epic",
+		"Mini",
+		"ANSI Shadow",
+		"The Edge",
+		"Cosmike",
+		// "Stronger than all",
+		"THIS",
+		"Calvin S",
+		"Bloody",
+		"Delta Corps Priest 1",
+		"Elite",
+	] as figlet.Fonts[]
+).sort(
+	(a, b) => figlet.textSync("XOA", b).length - figlet.textSync("XOA", a).length
+)
 
-// the "o" letter gets used to determine the width
-const fontsWidths: readonly { name: figlet.Fonts; width: number }[] = fontsToUse
-	.map((name_) => ({
-		name: name_,
-		width: figlet.textSync("o", name_).length,
-	}))
-	.sort(({ width: a }, { width: b }) => b - a)
+const gifsDirectory = path.join(import.meta.dirname, "../../assets/gifs/")
+const creeps = (await readdir(gifsDirectory)).map((fileName) =>
+	path.join(gifsDirectory, fileName)
+)
 
-// const creeps = await fs.readdir(
-// 	path.join(import.meta.dirname, "../../assets/gifs/")
-// )
+type ToRender =
+	| {
+			type: "text"
+			text: string
+	  }
+	| { type: "image"; path: string }
 
-const toRender$: Observable<string> = events$.pipe(
+const toRender$: Observable<ToRender> = events$.pipe(
 	map((event) => {
-		event.type === "data" && console.log(event.data)
 		return match(event)
 			.with({ type: "data" }, ({ data }) => data)
 			.with({ type: P.union("error", "connectError") }, ({ error }) => {
@@ -53,20 +72,55 @@ const toRender$: Observable<string> = events$.pipe(
 	filter(Array.isArray),
 	map((events) => events.findLast(isMpvSubtextUpdate)?.data),
 	filter(Boolean),
-	map((text) => figlet.textSync(pickWord(text), pickFont(text))),
-	switchMap((ascii) =>
-		merge(
+	switchMap((text) => {
+		if (Math.random() < 0.1) {
+			return of({ type: "image" as const, path: pickRandom(creeps)! })
+		}
+
+		const word = pickWord(text)!
+		const font = pickFont(word)
+
+		if (!font) {
+			return of({ type: "image" as const, path: pickRandom(creeps)! })
+		}
+
+		const ascii = figlet.textSync(word, font)
+
+		return merge(
 			of(ascii),
-			interval(Math.random() * 300 + 150).pipe(
-				map((index) => distortText(ascii, index + 1))
+			interval(Math.random() * 400 + 180).pipe(
+				map((index) => distortText(ascii, index * 0.3 + 1))
 			)
+		).pipe(
+			map((text) => ({
+				type: "text" as const,
+				text,
+			}))
 		)
-	)
+	})
 )
 
+let icat: ChildProcess | undefined
+
 toRender$.subscribe((toRender) => {
+	if (icat) {
+		icat.kill()
+	}
 	console.clear()
-	console.log(toRender)
+
+	if (toRender.type === "image") {
+		const width = process.stdout.columns
+		const height = process.stdout.rows
+
+		execSync(
+			`kitty icat --place=${width}x${height}@0x0 --scale-up ${toRender.path}`,
+			{
+				stdio: "inherit",
+			}
+		)
+	} else {
+		console.log(toRender.text)
+	}
 })
 
 // prettier-ignore
@@ -100,19 +154,23 @@ function distortText(text: string, strength: number): string {
 }
 
 function glitchSymbol(): string {
-	return pickRandom(glitchSymbols)
+	return pickRandom(glitchSymbols)!
 }
 
-function pickFont(text: string) {
-	const fitting = fontsWidths.filter(
-		({ width }) => width < process.stdout.columns
-	)
+function pickFont(text: string): figlet.Fonts | undefined {
+	const fitting = fontsToUse
+		.slice(Math.ceil(3 * Math.random()))
+		.find(
+			(font) =>
+				figlet.textSync(text, font).indexOf("\n") < process.stdout.columns
+		)
 
-	return pickRandom(fitting).name
+	return fitting
 }
 
 function pickWord(text: string) {
 	const words = text
+		.replace(/the/i, "")
 		.trim()
 		.replace(/[,\.-]/, "")
 		.replace(/ {2,}/, " ")
@@ -121,7 +179,7 @@ function pickWord(text: string) {
 	return pickRandom(words)
 }
 
-function pickRandom<T>(array: T[]): T {
+function pickRandom<T>(array: T[]): T | undefined {
 	const amount = array.length
 	const indexToPick = Math.ceil(Math.random() * (amount - 1))
 

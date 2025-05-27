@@ -3,6 +3,7 @@
 	"version": "1.0.0",
 	"description": "",
 	"main": "index.js",
+	"type": "module",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
@@ -11,8 +12,10 @@
 	"license": "ISC",
 	"dependencies": {
 		"@types/bun": "^1.2.14",
+		"@types/figlet": "^1.7.0",
 		"figlet": "^1.8.1",
 		"rxjs": "^7.8.2",
+		"ts-pattern": "^5.7.1",
 		"type-fest": "^4.41.0"
 	}
 }

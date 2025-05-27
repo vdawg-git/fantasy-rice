@@ -1,0 +1,1 @@
+kitty icat --scale-up --align=left --place=(tput cols)x(tput lines)@0x0 ./darkwizard.gif
