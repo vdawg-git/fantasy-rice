@@ -13,6 +13,7 @@
 	"dependencies": {
 		"@types/bun": "^1.2.14",
 		"@types/figlet": "^1.7.0",
+		"chalk": "^5.4.1",
 		"figlet": "^1.8.1",
 		"rxjs": "^7.8.2",
 		"ts-pattern": "^5.7.1",

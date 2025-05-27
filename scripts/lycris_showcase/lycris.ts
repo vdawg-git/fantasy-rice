@@ -6,8 +6,10 @@ import type { JsonValue } from "type-fest"
 import path from "node:path"
 import { readdir } from "node:fs/promises"
 import { exec, execSync, type ChildProcess } from "node:child_process"
+import chalk, { type ColorName } from "chalk"
 
 const SOCKET_PATH = "/tmp/mpv-lycris.sock" as const
+const colors: ColorName[] = ["redBright", "yellowBright", "whiteBright", "gray"]
 
 const { events$, client } = await connectSocket(SOCKET_PATH, (data) =>
 	data
@@ -88,7 +90,7 @@ const toRender$: Observable<ToRender> = events$.pipe(
 
 		return merge(
 			of(ascii),
-			interval(Math.random() * 400 + 180).pipe(
+			interval(Math.random() * 400 + 280).pipe(
 				map((index) => distortText(ascii, index * 0.3 + 1))
 			)
 		).pipe(
@@ -100,12 +102,7 @@ const toRender$: Observable<ToRender> = events$.pipe(
 	})
 )
 
-let icat: ChildProcess | undefined
-
 toRender$.subscribe((toRender) => {
-	if (icat) {
-		icat.kill()
-	}
 	console.clear()
 
 	if (toRender.type === "image") {
@@ -119,7 +116,8 @@ toRender$.subscribe((toRender) => {
 			}
 		)
 	} else {
-		console.log(toRender.text)
+		const color = pickRandom(colors)!
+		console.log(chalk[color](toRender.text))
 	}
 })
 
@@ -181,7 +179,7 @@ function pickWord(text: string) {
 
 function pickRandom<T>(array: T[]): T | undefined {
 	const amount = array.length
-	const indexToPick = Math.ceil(Math.random() * (amount - 1))
+	const indexToPick = Math.floor(Math.random() * (amount - 1))
 
 	return array[indexToPick]
 }
