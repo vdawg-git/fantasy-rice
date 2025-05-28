@@ -18,7 +18,7 @@ uniform mediump float bassBody;
 uniform mediump float midBass;
 uniform mediump float warmth;
 uniform mediump float lowMids;
-uniform mediump float midsMody;
+uniform mediump float midsMoody;
 uniform mediump float upperMids;
 uniform mediump float attack;
 uniform mediump float highs;
@@ -143,7 +143,7 @@ void main() {
   float bass = (subwoofer + subtone + kickdrum * 0.25) / 2.25;
 
   // rms: 0.27832186| subwoofer 0.9590597| subtone 0| kickdrum 1| lowBass 0|
-  // bassBody 0| midBass 1| warmth 0.60537446| lowMids 0.4150363| midsMody
+  // bassBody 0| midBass 1| warmth 0.60537446| lowMids 0.4150363| midsMoody
   // 0.31651106| upperMids 0.004805756| attack 0| highs 0
   bool isPixelating = loudness > 0.26 && subwoofer > 0.9 && kickdrum > 0.9 &&
                       midBass > 0.8 && warmth > 0.5 && lowMids > 0.5 &&
@@ -157,7 +157,7 @@ void main() {
       clamp((sin(uv.y * 8.0 - time * (lowBass + bassBody + midBass)) - 0.96) *
                 noise(vec2(time)),
             0.0, 0.01) *
-      (10.0 * (midsMody) + (midBass + bass + lowBass) * 4.);
+      (10.0 * (midsMoody) + (midBass + bass + lowBass) * 4.);
   float tcNoise = max(noise(vec2(uv.y * 100.0, time * 10.0)) - 0.5, 0.0);
   uv.x = uv.x - tcNoise * tcPhase;
 
@@ -180,7 +180,7 @@ void main() {
   color = applyCubicDistortion(tex, uv, cubicStrength, cubicStrengthExtra);
 
   // BLOOM
-  float bloomStrength = (midsMody + attack * 2.0 + upperMids) / 4.0 * 5.0;
+  float bloomStrength = (midsMoody + attack * 2.0 + upperMids) / 4.0 * 5.0;
   float bloomBrightness = bloomStrength / 2. * attack * 5.0 + 1.;
   color =
       tanh(color + getBloom(tex, uvDistorted, bloomStrength, bloomBrightness));

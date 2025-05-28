@@ -105,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             format!("{:.1},{}\n", analyzed.rms, analyzed.bands.iter().join(","));
 
                         println!(
-                        "rms: {}| subwoofer {}| subtone {}| kickdrum {}| lowBass {}| bassBody {}| midBass {}| warmth {}| lowMids {}| midsMody {}| upperMids {}| attack {}| highs {} \n",
+                        "rms: {}| subwoofer {}| subtone {}| kickdrum {}| lowBass {}| bassBody {}| midBass {}| warmth {}| lowMids {}| midsMoody {}| upperMids {}| attack {}| highs {} \n",
                         analyzed.rms,
                         analyzed.bands[0],
                         analyzed.bands[1],

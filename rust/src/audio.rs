@@ -15,7 +15,7 @@ const BANDS_HZ: &[&'static f32; 12] = &[
     &110.0,   // midBass
     &250.0,   // warmth
     &400.0,   // lowMids
-    &700.0,   // midsMody
+    &700.0,   // midsMoody
     &1200.0,  // upperMids
     &2500.0,  // attack
     &20000.0, // highs

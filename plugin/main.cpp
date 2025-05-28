@@ -58,7 +58,7 @@ inline GLint s_bassBodyUniform = -1;
 inline GLint s_midBassUniform = -1;
 inline GLint s_warmthUniform = -1;
 inline GLint s_lowMidsUniform = -1;
-inline GLint s_midsModyUniform = -1;
+inline GLint s_midsMoodyUniform = -1;
 inline GLint s_upperMidsUniform = -1;
 inline GLint s_attackUniform = -1;
 inline GLint s_highsUniform = -1;
@@ -79,7 +79,7 @@ void hkUseProgram(void *thisptr, GLuint prog)
         glUniform1f(s_midBassUniform, bandsData[6]);
         glUniform1f(s_warmthUniform, bandsData[7]);
         glUniform1f(s_lowMidsUniform, bandsData[8]);
-        glUniform1f(s_midsModyUniform, bandsData[9]);
+        glUniform1f(s_midsMoodyUniform, bandsData[9]);
         glUniform1f(s_upperMidsUniform, bandsData[10]);
         glUniform1f(s_attackUniform, bandsData[11]);
         glUniform1f(s_highsUniform, bandsData[12]);
@@ -102,7 +102,7 @@ void hkApplyScreenShader(void *thisptr, const std::string &path)
     s_midBassUniform = glGetUniformLocation(s_finalScreenShaderProgram, "midBass");
     s_warmthUniform = glGetUniformLocation(s_finalScreenShaderProgram, "warmth");
     s_lowMidsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "lowMids");
-    s_midsModyUniform = glGetUniformLocation(s_finalScreenShaderProgram, "mids");
+    s_midsMoodyUniform = glGetUniformLocation(s_finalScreenShaderProgram, "mids");
     s_upperMidsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "upperMids");
     s_attackUniform = glGetUniformLocation(s_finalScreenShaderProgram, "attack");
     s_highsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "highs");
