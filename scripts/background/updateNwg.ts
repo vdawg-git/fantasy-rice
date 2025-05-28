@@ -1,4 +1,4 @@
-import { filter, map, pairwise } from "rxjs"
+import { debounce, debounceTime, filter, map, pairwise } from "rxjs"
 import { connectSocket } from "../socket"
 import { match, P } from "ts-pattern"
 import { exec } from "child_process"
@@ -7,10 +7,11 @@ const socketPath = "/tmp/audio_monitor.sock"
 const updateSignal = 45
 
 type RawAudioData = [
+	number, // loudness
 	number, // subwoofer
-	number, // subtone
+	number, // subtone, always zero
 	number, // kickdrum
-	number, // lowBass
+	number, // ignore, always zero, lowBass
 	number, // bassBody
 	number, // midBass
 	number, // warmth
@@ -21,34 +22,42 @@ type RawAudioData = [
 	number, // highs
 ]
 
-type ParsedAudio = {
-	midsMoody: number
+export async function startNwgUpdates() {
+	const { events$ } = await connectSocket(socketPath, (buffer) => {
+		const raw = buffer.toString().split(",").map(Number) as RawAudioData
+
+		return raw
+	})
+
+	const shouldUpdatePanel$ = events$.pipe(
+		map((event) => {
+			return match(event)
+				.with({ type: "data" }, ({ data }) => data)
+				.with({ type: P.union("error", "connectError") }, ({ error }) => {
+					throw error
+				})
+				.otherwise(() => undefined)
+		}),
+		filter(Boolean),
+		filter((data) => !!data[0]),
+		map((raw) => {
+			const {
+				1: subwoofer,
+				3: kickdrum,
+				5: bassBody,
+				6: midBass,
+
+				0: loudness,
+			} = raw
+
+			console.log({ bassBody, raw })
+			return kickdrum == 1 && subwoofer == 1 && loudness >= 0.3
+		}),
+		debounceTime(2),
+		filter(Boolean)
+	)
+
+	shouldUpdatePanel$.subscribe(() => {
+		exec(`pkill -${updateSignal} nwg-panel`)
+	})
 }
-
-const { events$ } = await connectSocket(socketPath, (buffer) => {
-	const raw = JSON.parse(buffer.toString()) as RawAudioData
-
-	return { midsMoody: raw[8] } as ParsedAudio
-})
-
-const shouldUpdatePanel$ = events$.pipe(
-	map((event) => {
-		return match(event)
-			.with({ type: "data" }, ({ data }) => data.midsMoody)
-			.with({ type: P.union("error", "connectError") }, ({ error }) => {
-				throw error
-			})
-			.otherwise(() => undefined)
-	}),
-	filter(Boolean),
-	pairwise(),
-	map(([before, now]) => {
-		const threshold = 0.8
-		return Math.abs(before - now) > threshold ? true : false
-	}),
-	filter(Boolean)
-)
-
-shouldUpdatePanel$.subscribe(() => {
-	exec(`pkill ${updateSignal} nwg-panel`)
-})

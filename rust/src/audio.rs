@@ -113,36 +113,9 @@ fn compute_bands(samples: &[f32]) -> Vec<f32> {
 /// Takes the magnitude, converts to db, and normalizes to 0..1
 fn normalize_to_db(magnitude: f32) -> f32 {
     // It is not uncommon for a band to have magnitudes over 30
-    let max_magnitude = 60.0;
+    let max_magnitude = 80.0;
     let value = (magnitude / max_magnitude).max(1e-6);
     let db = 20.0 * value.log10();
 
     ((db - MIN_DB) / (MAX_DB - MIN_DB)).clamp(0.0, 1.0)
 }
-
-// Tracks its values and applies dynamic smoothing
-// struct BandMeter {
-//     min: f32,
-//     max: f32,
-//     value: f32,
-//     smoothing: f32,
-// }
-
-// impl BandMeter {
-//     pub fn new(smoothnes: f32) -> Self {
-//         BandMeter {
-//             min: 0.,
-//             max: 0.,
-//             value: 0.,
-//             smoothing: smoothnes,
-//         }
-//     }
-
-//     pub fn update(&mut self, newValue: f32) -> f32 {
-//         self.min = self.min * (1.0 - self.smoothing) + newValue.min(self.min) * self.smoothing;
-//         self.max = self.max * (1.0 - self.smoothing) + newValue.max(self.max) * self.smoothing;
-//         self.value = self.value * (1.0 - self.smoothing) + newValue * self.smoothing;
-
-//         let range = (self.max - self.min).max(1e-6);
-//     }
-// }
