@@ -1,4 +1,11 @@
-import { debounce, debounceTime, filter, map, pairwise } from "rxjs"
+import {
+	debounce,
+	debounceTime,
+	filter,
+	map,
+	pairwise,
+	throttleTime,
+} from "rxjs"
 import { connectSocket } from "../socket"
 import { match, P } from "ts-pattern"
 import { exec } from "child_process"
@@ -51,9 +58,9 @@ export async function startNwgUpdates() {
 			} = raw
 
 			console.log({ bassBody, raw })
-			return kickdrum == 1 && subwoofer == 1 && loudness >= 0.3
+			return kickdrum == 1 && subwoofer == 1 && loudness >= 0.3 && midBass > 0.9
 		}),
-		debounceTime(2),
+		throttleTime(8),
 		filter(Boolean)
 	)
 
