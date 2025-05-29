@@ -8,7 +8,6 @@ use audio::analyse_samples;
 use connection_manager::ConnectionManager;
 use itertools::Itertools;
 use pipewire::{main_loop::MainLoop, spa::utils::Direction};
-use std::iter::Inspect;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
 use std::time::{Duration, Instant};
