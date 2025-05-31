@@ -1,4 +1,4 @@
-import { connectSocket, createPayload } from "./socket"
+import { connectSocket, createPayload } from "../socket"
 import { match, P } from "ts-pattern"
 import { filter, interval, map, merge, Observable, of, switchMap } from "rxjs"
 import figlet from "figlet"

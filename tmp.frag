@@ -186,13 +186,17 @@ void main() {
       tanh(color + getBloom(tex, uvDistorted, bloomStrength, bloomBrightness));
 
   // Extra vhs bloom
-  // for (float x = .0 - midBass + warmth ; x < 2.5; x += 1.0) {
-  //   color += vec3(texture(tex, uv + vec2(x - 0.0, 0.0) * 7E-3).r,
-  //                 texture(tex, uv + vec2(x - 2.0, 0.0) * 7E-3).g,
-  //                 texture(tex, uv + vec2(x - 4.0, 0.0) * 7E-3).b) *
-  //            0.1;
-  // }
-  // color *= vec3( 0.72, 0.7, 0.68 );
+  vec3 toAdd = vec3(0);
+  for (float x = -4.0 ; x < 2.5; x += 1.0) {
+    toAdd += vec3(texture(tex, uvDistorted + vec2(x - 0.0, 0.0) * 7E-3).r,
+                  texture(tex, uvDistorted + vec2(x - 2.0, 0.0) * 7E-3).g,
+                  texture(tex, uvDistorted + vec2(x - 4.0, 0.0) * 7E-3).b) * 0.1;
+  }
+  color.rgb += toAdd * bloomStrength / 5.;
+  color *=  1. - ( 0.8  * ( bloomStrength / 5. ) );
+
+  // color += toAdd * midBass;
+  // color *= 1 - ( vec3( 0.72, 0.7, 0.68 ) * midBass);
 
   // color *= bass + 1.0;
   fragColor = vec4(color, 1.);

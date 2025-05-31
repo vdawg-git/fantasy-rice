@@ -11,7 +11,7 @@ for (let i = 0; i < amountTiles; i++) {
 			"-o",
 			"window_padding_width=0",
 			"-o",
-			"background_opacity=1",
+			"background_opacity=0.0",
 			"sh",
 			"-c",
 			`bun ${toExecute} || read`,
