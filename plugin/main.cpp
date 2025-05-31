@@ -69,20 +69,20 @@ void hkUseProgram(void *thisptr, GLuint prog)
 
     if (prog == s_finalScreenShaderProgram)
     {
-    auto bandsData = *s_audioBands.load().get();
-    glUniform1f(s_loudnessUniform, bandsData[0]);
-    glUniform1f(s_subwooferUniform, bandsData[1]);
-    glUniform1f(s_subtoneUniform, bandsData[2]);
-    glUniform1f(s_kickdrumUniform, bandsData[3]);
-    glUniform1f(s_lowBassUniform, bandsData[4]);
-    glUniform1f(s_bassBodyUniform, bandsData[5]);
-    glUniform1f(s_midBassUniform, bandsData[6]);
-    glUniform1f(s_warmthUniform, bandsData[7]);
-    glUniform1f(s_lowMidsUniform, bandsData[8]);
-    glUniform1f(s_midsMoodyUniform, bandsData[9]);
-    glUniform1f(s_upperMidsUniform, bandsData[10]);
-    glUniform1f(s_attackUniform, bandsData[11]);
-    glUniform1f(s_highsUniform, bandsData[12]);
+        auto bandsData = *s_audioBands.load().get();
+        glUniform1f(s_loudnessUniform, bandsData[0]);
+        glUniform1f(s_subwooferUniform, bandsData[1]);
+        glUniform1f(s_subtoneUniform, bandsData[2]);
+        glUniform1f(s_kickdrumUniform, bandsData[3]);
+        glUniform1f(s_lowBassUniform, bandsData[4]);
+        glUniform1f(s_bassBodyUniform, bandsData[5]);
+        glUniform1f(s_midBassUniform, bandsData[6]);
+        glUniform1f(s_warmthUniform, bandsData[7]);
+        glUniform1f(s_lowMidsUniform, bandsData[8]);
+        glUniform1f(s_midsMoodyUniform, bandsData[9]);
+        glUniform1f(s_upperMidsUniform, bandsData[10]);
+        glUniform1f(s_attackUniform, bandsData[11]);
+        glUniform1f(s_highsUniform, bandsData[12]);
     }
 }
 
@@ -108,8 +108,6 @@ void hkApplyScreenShader(void *thisptr, const std::string &path)
     s_highsUniform = glGetUniformLocation(s_finalScreenShaderProgram, "highs");
 
     auto bands = *s_audioBands.load();
-    HyprlandAPI::addNotification(PHANDLE, std::format("{}", bands), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
-    // HyprlandAPI::addNotification(PHANDLE, std::format("{}\n{}\n{}\nHooked applyScreenShader was called", s_finalScreenShaderProgram, s_loudnessUniform, s_loudness.load()), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 }
 
 bool tryConnectSocket()
@@ -144,7 +142,7 @@ bool tryConnectSocket()
         fcntl(s_socketFD, F_SETFL, flags | O_NONBLOCK);
     }
 
-    HyprlandAPI::addNotification(PHANDLE, std::format("Connected to socket: {}", SOCKET_PATH), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
+    // HyprlandAPI::addNotification(PHANDLE, std::format("Connected to socket: {}", SOCKET_PATH), CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 
     return true;
 }
@@ -348,7 +346,7 @@ extern "C" APICALL PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle)
     setupHook(PHANDLE, "applyScreenShader", "CHyprOpenGLImpl", (void *)::hkApplyScreenShader, s_applyScreenShaderHook);
     setupHook(PHANDLE, "useProgram", "CHyprOpenGLImpl", (void *)::hkUseProgram, s_useProgramHook);
 
-    HyprlandAPI::addNotification(PHANDLE, "Visualizer plugin loaded! 🎶", CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
+    // HyprlandAPI::addNotification(PHANDLE, "Visualizer plugin loaded! 🎶", CHyprColor{0.2f, 1.0f, 0.4f, 1.0f}, 4000);
 
     return {"hypr-visualizer", "Minimal shader-based music visualizer", "Dawg", "1.0"};
 }

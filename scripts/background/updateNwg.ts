@@ -57,8 +57,7 @@ export async function startNwgUpdates() {
 				0: loudness,
 			} = raw
 
-			console.log({ bassBody, raw })
-			return kickdrum == 1 && subwoofer == 1 && loudness >= 0.3 && midBass > 0.9
+			return kickdrum == 1 && subwoofer == 1 && loudness >= 0.3 
 		}),
 		throttleTime(8),
 		filter(Boolean)

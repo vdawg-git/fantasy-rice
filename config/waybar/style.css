@@ -1,0 +1,143 @@
+@define-color bar-bg rgba(14, 14, 14, 0.20);
+
+@define-color main-color @theme_text_color;
+@define-color main-bg rgba(14, 14, 14, 0);
+@define-color dark #292828;
+
+@define-color tool-bg #292828;
+@define-color tool-color #c5b18d;
+@define-color tool-border #383432;
+
+@define-color wb-color #a89984;
+
+@define-color wb-act-bg #7c6f64;
+@define-color wb-act-color #504945;
+
+@define-color wb-hvr-bg rgba(216, 166, 87,0.1);
+@define-color wb-hvr-color #5a524c;
+
+* {
+	border: none;
+	border-radius: 0px;
+	font-family: "Zpix";
+	font-weight: bold;
+}
+
+.modules-right {
+	background-image: url("/home/vdawg/dev/hypr-audio/assets/Horde_Horizontal_Frame.PNG");
+	background-repeat: no-repeat;
+	background-size: contain;
+	/* background-size: 56px 56px; */
+	padding: 0px 20px;
+	background-position: center;
+	color: @wb-color;
+}
+
+window#waybar {
+	background: transparent;
+}
+
+tooltip {
+	background: @main-bg;
+	color: @tool-color;
+	border-radius: 16px;
+	padding: 16px;
+}
+
+#workspaces {
+}
+
+#workspaces button {
+	min-width: 32px;
+	min-height: 32px;
+	transition: none;
+	background-image: url("/home/vdawg/dev/hypr-audio/assets/Horde_Circular_Frame_Filled.PNG");
+	background-repeat: no-repeat;
+	background-size: 56px 56px;
+	background-position: center;
+}
+
+#workspaces button label {
+	min-width: 10px;
+	min-height: 10px;
+	border-radius: 999px;
+	font-size: 12px;
+	color: @wb-color;
+}
+
+#workspaces button.active {
+	transition: none;
+}
+#workspaces button.active label {
+	background: transparent;
+	color: red;
+}
+
+#taskbar button.active {
+	border-bottom: solid 2px @dark;
+	border-bottom: solid 2px @tool-color;
+	background: @wb-hvr-bg;
+	color: @main-bg;
+	/* margin-left: 2px; */
+	/* padding-left: 24px;
+	padding-right: 24px; */
+	/* margin-right: 2px; */
+	animation: gradient_f 20s ease-in infinite;
+	transition: all 0.3s cubic-bezier(0.55, -0.68, 0.48, 1.682);
+	opacity: 1;
+}
+
+#taskbar button:hover {
+	background: @wb-hvr-bg;
+	color: @wb-active-color;
+	/* padding-left: 2px;
+	padding-right: 2px; */
+	animation: gradient_f 20s ease-in infinite;
+	transition: all 320ms cubic-bezier(0.55, 0.18, 0.048, 1);
+}
+
+#cpu,
+#battery,
+#memory,
+#clock,
+#window,
+#network,
+#bluetooth,
+#pulseaudio,
+#mpris,
+#custom-updates,
+#custom-wallchange,
+#custom-mode,
+#custom-cliphist,
+#custom-wbar,
+#custom-power,
+#tray {
+	font-size: 14px;
+	opacity: 0.9;
+	padding-left: 12px;
+	padding-right: 12px;
+}
+
+#window,
+#taskbar {
+	padding: 0px;
+}
+
+#custom-power {
+	padding-left: 24px;
+	padding-right: 24px;
+}
+
+#custom-notification {
+	padding-left: 24px;
+	padding-right: 24px;
+}
+
+#custom-logo {
+	min-width: 40px;
+	min-height: 40px;
+	background-image: url("/home/vdawg/dev/hypr-audio/assets/Horde-hypr-Logo.png");
+	background-repeat: no-repeat;
+	background-size: 40px 40px;
+	color: transparent;
+}

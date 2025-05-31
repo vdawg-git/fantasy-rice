@@ -157,7 +157,6 @@ function glitchSymbol(): string {
 
 function pickFont(text: string): figlet.Fonts | undefined {
 	const fitting = fontsToUse
-		.slice(Math.ceil(3 * Math.random()))
 		.find(
 			(font) =>
 				figlet.textSync(text, font).indexOf("\n") < process.stdout.columns

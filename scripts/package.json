@@ -17,6 +17,7 @@
 		"figlet": "^1.8.1",
 		"rxjs": "^7.8.2",
 		"ts-pattern": "^5.7.1",
-		"type-fest": "^4.41.0"
+		"type-fest": "^4.41.0",
+		"@types/node": "^22.15.21"
 	}
 }

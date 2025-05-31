@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import path from "node:path"
 
-const amountTiles = 10
+const amountTiles = 9
 const toExecute = path.join(import.meta.dirname, "lycris.ts")
 
 for (let i = 0; i < amountTiles; i++) {
