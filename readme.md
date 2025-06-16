@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/8e92e836-ddbd-49d9-9580-38cb41fc54a2" alt="Preview" width="600" />
+  <a href="https://mega.nz/file/BbQxDDpa#FmSndbgDEf3e7__7_Kq185w7akLJgyoE_2fiR4x2eqQ" target="_blank"><img src="https://github.com/user-attachments/assets/8e92e836-ddbd-49d9-9580-38cb41fc54a2" alt="Preview" width="600" /></a>
 </p>
 
 <h1 align="center">𝕯𝖎𝖘𝖓𝖆𝖞 𝖙𝖞𝖕𝖊 𝖘𝖍𝖎</h1>
