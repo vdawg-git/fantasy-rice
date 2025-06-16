@@ -1,5 +1,6 @@
 # Disnay type shit
 
+[Video Link](https://mega.nz/file/BbQxDDpa#FmSndbgDEf3e7__7_Kq185w7akLJgyoE_2fiR4x2eqQ)
 
 ## To run the music visualizer:
 - The audio visualizer only works in a debug build for some reason
