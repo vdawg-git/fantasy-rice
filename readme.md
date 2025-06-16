@@ -1,6 +1,11 @@
-# Disnay type shit
+# Disnay type shi
 
 [Video Link](https://mega.nz/file/BbQxDDpa#FmSndbgDEf3e7__7_Kq185w7akLJgyoE_2fiR4x2eqQ)
+![image](https://github.com/user-attachments/assets/8e92e836-ddbd-49d9-9580-38cb41fc54a2)
+
+[![image](https://github.com/user-attachments/assets/8e92e836-ddbd-49d9-9580-38cb41fc54a2)](https://mega.nz/file/BbQxDDpa#FmSndbgDEf3e7__7_Kq185w7akLJgyoE_2fiR4x2eqQ)
+
+
 
 ## To run the music visualizer:
 - The audio visualizer only works in a debug build for some reason
